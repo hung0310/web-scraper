@@ -1,0 +1,57 @@
+name: Crawl News
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 2 giờ sáng UTC (9 giờ sáng VN)
+  workflow_dispatch:
+
+jobs:
+  crawl-news:
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout code
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      # Cài Python
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      # Cài thư viện từ requirements.txt
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+
+      # Crawl Tuổi Trẻ
+      - name: Crawl Tuoi Tre
+        run: python CrawlPaperTuoiTre.py
+
+      # Crawl VNExpress
+      - name: Crawl VNExpress
+        run: python CrawlPaperVNExpress.py
+
+      # Commit kết quả
+      - name: Commit Results
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add dataset_paper_tuoitre.csv dataset_paper_vnexpress.csv
+          git commit -m "Update crawled data - $(date)" || echo "No changes to commit"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Gửi email
+      - name: Send Email
+        uses: dawid66/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: 'Crawl data Tuoi Tre and VN Express'
+          body: 'Crawl completed successfully. Check the results in the repository.'
+          to: nth0326zz@gmail.com
+          from: 'Crawl Paper Web Scraper'
