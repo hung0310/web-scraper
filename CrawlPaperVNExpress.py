@@ -1,196 +1,193 @@
-import csv
-import random
-import re
-import time
-from datetime import datetime, timedelta
-from typing import Optional, Set
-
-from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from datetime import datetime, timedelta
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.support import expected_conditions as EC
+from bs4 import BeautifulSoup
+import time
+import csv
+import random
+import os
 
-class NewsScraper:
-    def __init__(self):
-        self.base_url = 'https://vnexpress.net'
-        self.yesterday = (datetime.now() - timedelta(days=1)).date()
-        self.output_file = 'dataset_paper_vnexpress.csv'
-        self.driver = self._initialize_driver()
-        self.crawled_urls = self._load_crawled_urls()
+options = Options()
+options.add_argument("--headless")  # Bỏ comment dòng này nếu muốn chạy ẩn
 
-    def _initialize_driver(self) -> webdriver.Chrome:
-        options = Options()
-        options.add_argument("--headless")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--disable-extensions")
-        options.add_argument(
-            "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
-        )
-        options.add_argument("--ignore-certificate-errors")
-        options.add_argument("--allow-insecure-localhost")
-        
-        driver = webdriver.Chrome(options=options)
-        driver.set_page_load_timeout(120)  # Tăng timeout lên 120 giây
-        return driver
+driver = webdriver.Chrome(options=options)
+driver.set_page_load_timeout(120)
 
-    def _wait_for_element(self, by: By, value: str, timeout: int = 120) -> WebDriverWait:
-        return WebDriverWait(self.driver, timeout).until(
-            EC.presence_of_element_located((by, value))
-        )
+base_url = 'https://vnexpress.net'
+csv_file = 'dataset_paper_vnexpress.csv'
+yesterday = datetime.now() - timedelta(days=1)
+processed_urls = set()
 
-    def _get_soup(self, url: str, selector: str, retries: int = 3) -> Optional[BeautifulSoup]:
-        for attempt in range(retries):
-            try:
-                self.driver.get(url)
-                self._wait_for_element(By.CSS_SELECTOR, selector)
-                return BeautifulSoup(self.driver.page_source, 'html.parser')
-            except TimeoutException as e:
-                print(f"Timeout khi tải {url} (lần {attempt + 1}/{retries}): {e}")
-                if attempt < retries - 1:
-                    time.sleep(random.uniform(2, 5))
-            except Exception as e:
-                print(f"Lỗi khác khi tải {url} (lần {attempt + 1}/{retries}): {e}")
-                if attempt < retries - 1:
-                    time.sleep(random.uniform(2, 5))
+def _extract_date_from_url(srcset):
+    try:
+        # Trích xuất URL đầu tiên từ srcset
+        url = srcset.split(',')[0].strip().split(' ')[0]
+        parts = url.split('/')
+        for i in range(len(parts) - 2):
+            if (i+2 < len(parts) and
+                parts[i].isdigit() and len(parts[i]) == 4 and
+                parts[i+1].isdigit() and len(parts[i+1]) == 2 and
+                parts[i+2].isdigit() and len(parts[i+2]) == 2):
+                date_str = f"{parts[i]}/{parts[i+1]}/{parts[i+2]}"
+                return datetime.strptime(date_str, '%Y/%m/%d').date()
+        print(f"Không tìm thấy định dạng ngày trong: {srcset}")
+        return None
+    except Exception as e:
+        print(f"Lỗi khi trích xuất ngày từ srcset: {e}")
         return None
 
-    def _extract_date_from_url(self, url: str) -> Optional[datetime.date]:
-        first_url = url.split(',')[0].strip()  # Lấy URL đầu tiên trong srcset
-        match = re.search(r'/(\d{4})/(\d{2})/(\d{2})/', first_url)
-        return datetime(*map(int, match.groups())).date() if match else None
+try:
+    driver.get(base_url)
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, 'ul.parent > li')))
+    soup_categories_paper = BeautifulSoup(driver.page_source, 'html.parser')
+    soup_categories = soup_categories_paper.select('ul.parent > li')
 
-    def _load_crawled_urls(self) -> Set[str]:
-        crawled_urls = set()
-        try:
-            with open(self.output_file, mode='r', encoding='utf-8') as file:
-                reader = csv.reader(file)
-                next(reader, None)  # Bỏ qua header
-                for row in reader:
-                    if len(row) >= 2:  # Dùng tiêu đề làm khóa để tránh trùng
-                        crawled_urls.add(row[1])  # Tiêu đề ở cột thứ 2
-        except FileNotFoundError:
-            pass
-        return crawled_urls
+    with open(csv_file, mode='w', encoding='utf-8', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["Source", "URL", "Category", "Keyword", "Time", "Title", "Content"])
+        
+        if soup_categories:
+            for li in soup_categories:
+                ul_tags = li.select('ul.sub')
+                for ul_tag in ul_tags:
+                    sub_lis = ul_tag.find_all('li')
+                    for sub_li in sub_lis:
+                        text_sub = sub_li.get_text(strip=True)
+                        a_tag = sub_li.select_one('a')
+                        if a_tag:
+                            href_a_sub_li = a_tag.get("href", "")
+                            if not href_a_sub_li:
+                                continue
+                                
+                            name_category = a_tag.get_text(strip=True)
+                            if not href_a_sub_li.startswith('http'):
+                                href_a_sub_li = base_url + href_a_sub_li
 
-    def _crawl_article(self, url: str, writer: csv.writer) -> bool:
-        if url in self.crawled_urls:
-            print(f"Bài {url} đã được crawl, bỏ qua.")
-            return True
+                            try:
+                                print(f"Đang truy cập danh mục: {name_category} ({href_a_sub_li})")
+                                driver.get(href_a_sub_li)
+                                WebDriverWait(driver, 10).until(
+                                    EC.presence_of_element_located((By.CSS_SELECTOR, 'div.list-news-subfolder > article.item-news, article.item-news'))
+                                )
+                                soup_paper = BeautifulSoup(driver.page_source, 'html.parser')
 
-        for attempt in range(3):
-            try:
-                soup = self._get_soup(url, 'div.sidebar-1 > h1.title-detail')
-                if not soup:
-                    raise TimeoutException("Không tải được nội dung bài viết")
+                                # Tìm phân trang
+                                pagination_links = soup_paper.select('div.button-page a')
+                                page_numbers = [int(link.text) for link in pagination_links if link.text.isdigit()]
+                                last_page = max(page_numbers) if page_numbers else 1
 
-                time_elem = soup.select_one('div.sidebar-1 > div.header-content > span.date')
-                title_elem = soup.select_one('div.sidebar-1 > h1.title-detail')
-                head_elem = soup.select_one('div.sidebar-1 > p.description')
-                main_elems = soup.select('div.sidebar-1 > article.fck_detail > p.Normal')
+                                print(f"Tìm thấy {last_page} trang cho danh mục: {name_category}")
 
-                time_text = time_elem.get_text(strip=True) if time_elem else 'N/A'
-                title_text = title_elem.get_text(strip=True) if title_elem else 'N/A'
-                head_text = head_elem.get_text(strip=True) if head_elem else ''
-                main_text = ' '.join(p.get_text(strip=True) for p in main_elems) if main_elems else ''
+                                for page in range(1, last_page + 1):
+                                    stop_category = False
+                                    try:
+                                        page_url = f'{href_a_sub_li}-p{page}' if page > 1 else href_a_sub_li
+                                        print(f"Đang xử lý trang {page}/{last_page}: {page_url}")
+                                        driver.get(page_url)
+                                        WebDriverWait(driver, 10).until(
+                                            EC.presence_of_element_located((By.CSS_SELECTOR, 'div.list-news-subfolder > article.item-news, article.item-news'))
+                                        )
+                                        soup_data_paper = BeautifulSoup(driver.page_source, 'html.parser')
+                                        data_paper = soup_data_paper.select('div.list-news-subfolder > article.item-news, article.item-news')
 
-                full_content = f"{head_text} {main_text}".strip()
-                writer.writerow([time_text, title_text, full_content])
-                self.crawled_urls.add(title_text)  # Dùng tiêu đề để kiểm tra trùng
-                return True
+                                        if not data_paper:
+                                            print(f"Không tìm thấy bài viết nào trong trang {page}")
+                                            continue
 
-            except TimeoutException as e:
-                print(f"Timeout khi tải {url} (lần {attempt + 1}/3): {e}")
-                if attempt == 2:
-                    print(f"Bỏ qua bài {url} sau 3 lần thử")
-                    return False
-                time.sleep(random.uniform(2, 5))
-            except Exception as e:
-                print(f"Lỗi khác khi tải {url}: {e}")
-                return False
-        return False
+                                        for data in data_paper:
+                                            srcset_elem = data.select_one('div.thumb-art > a > picture > source, source')
+                                            if not srcset_elem or not srcset_elem.get('srcset'):
+                                                continue
 
-    def scrape_category(self, category_url: str, category_name: str, writer: csv.writer):
-        soup = self._get_soup(category_url, 'div.list-news-subfolder > article.item-news')
-        if not soup:
-            return
+                                            article_date = _extract_date_from_url(srcset_elem['srcset'])
+                                            if not article_date:
+                                                print("Không thể xác định ngày của bài viết, tiếp tục.")
+                                                continue
+                                                
+                                            print(f"Ngày bài viết: {article_date}, Ngày hôm qua: {yesterday.date()}")
+                                            
+                                            if article_date < yesterday.date():
+                                                print(f"Bài viết cũ hơn ngày hôm qua, dừng danh mục này.")
+                                                stop_category = True
+                                                break
+                                            elif article_date > yesterday.date():
+                                                print(f"Bài viết mới hơn ngày hôm qua, bỏ qua.")
+                                                continue
+                                            
+                                            href_article = data.select_one('h2.title-news > a, h3.title-news > a, a.title-news')
+                                            if href_article:
+                                                href_article_data = href_article.get("href", "")
+                                                if not href_article_data:
+                                                    continue
+                                                    
+                                                if not href_article_data.startswith('http'):
+                                                    href_article_data = base_url + href_article_data
 
-        pagination_links = soup.select('div.button-page a')
-        last_page = max((int(link.text) for link in pagination_links if link.text.isdigit()), default=1)
-        print(f"Đang lấy dữ liệu từ {last_page} trang cho danh mục: {category_name}")
+                                                if href_article_data in processed_urls:
+                                                    print(f"Đã xử lý bài viết này rồi: {href_article_data}")
+                                                    continue
 
-        article_urls = set()
-        for page in range(1, last_page + 1):
-            page_url = f'{category_url}-p{page}'
-            soup = self._get_soup(page_url, 'div.list-news-subfolder > article.item-news')
-            if not soup:
-                continue
+                                                try:
+                                                    print(f"Đang xử lý bài viết: {href_article_data}")
+                                                    driver.get(href_article_data)
+                                                    soup_detail_article = BeautifulSoup(driver.page_source, 'html.parser')
+                                                    
+                                                    keyword_elems = driver.find_elements(By.CLASS_NAME, 'item-tag')
+                                                    
+                                                    time_article = soup_detail_article.select_one('div.sidebar-1 > div.header-content > span.date, span.date')
+                                                    title_article = soup_detail_article.select_one('div.sidebar-1 > h1.title-detail, h1.title-detail')
+                                                    para_head_article = soup_detail_article.select_one('div.sidebar-1 > p.description, p.description')
+                                                    para_main_article = soup_detail_article.select('div.sidebar-1 > article.fck_detail > p.Normal, article.fck_detail > p.Normal, p.Normal')
 
-            articles = soup.select('div.list-news-subfolder > article.item-news')
-            stop_category = False
+                                                    time_text = time_article.get_text(strip=True) if time_article else 'N/A'
+                                                    title_text = title_article.get_text(strip=True) if title_article else 'N/A'
+                                                    para_head_text = para_head_article.get_text(strip=True) if para_head_article else ''
+                                                    para_main_text = " ".join([p.get_text(strip=True) for p in para_main_article]) if para_main_article else ''
+                                                    keyword_paper = ",".join([a.text for a in keyword_elems])
 
-            for article in articles:
-                srcset_elem = article.select_one('div.thumb-art > a > picture > source')
-                if not srcset_elem or not srcset_elem.get('srcset'):
-                    continue
+                                                    full_content = f"{para_head_text} {para_main_text}".strip()
 
-                article_date = self._extract_date_from_url(srcset_elem['srcset'])
-                if not article_date or article_date != self.yesterday:
-                    stop_category = True
-                    break
+                                                    if not full_content:
+                                                        print(f"Không tìm thấy nội dung cho bài viết: {href_article_data}")
+                                                        continue
 
-                href_elem = article.select_one('h2.title-news > a')
-                if href_elem and href_elem.get('href'):
-                    article_url = href_elem['href']
-                    if not article_url.startswith('http'):
-                        article_url = self.base_url + article_url
-                    article_urls.add(article_url)
+                                                    writer.writerow(["VN Express", href_article_data, name_category, keyword_paper, time_text, title_text, full_content])
+                                                    processed_urls.add(href_article_data)
+                                                    print(f"Đã lưu bài viết: {title_text}")
 
-            if stop_category:
-                break
-            time.sleep(random.uniform(2, 4))
+                                                except Exception as e:
+                                                    print(f"Lỗi khi lấy bài viết {href_article_data}: {e}")
+                                                    continue
 
-        print(f"Bắt đầu crawl {len(article_urls)} bài trong {category_name}")
-        for article_url in article_urls:
-            success = self._crawl_article(article_url, writer)
-            if not success:
-                print("Khởi động lại driver do lỗi nghiêm trọng.")
-                self.driver.quit()
-                self.driver = self._initialize_driver()
-                continue
+                                        if stop_category:
+                                            print(f"Dừng tại trang {page} của danh mục {name_category} vì không còn bài từ hôm qua.")
+                                            break
+                                        
+                                        # Nghỉ ngẫu nhiên để tránh bị chặn
+                                        sleep_time = random.uniform(2, 4)
+                                        print(f"Nghỉ {sleep_time:.2f} giây trước khi tiếp tục...")
+                                        time.sleep(sleep_time)
 
-    def run(self):
-        try:
-            soup = self._get_soup(self.base_url, 'ul.parent > li')
-            if not soup:
-                print('Không tìm thấy menu')
-                return
+                                    except Exception as e:
+                                        print(f"Lỗi khi tải trang {page_url}: {e}")
+                                        continue
 
-            with open(self.output_file, mode='a', encoding='utf-8', newline='') as file:
-                writer = csv.writer(file)
-                if file.tell() == 0:  # Chỉ ghi header nếu file rỗng
-                    writer.writerow(["Thời gian", "Tiêu đề", "Nội dung"])
+                            except Exception as e:
+                                print(f"Lỗi khi lấy danh mục {href_a_sub_li}: {e}")
+                                continue
+                        else:
+                            print(f"Không tìm thấy liên kết trong mục {text_sub}")
 
-                for category in soup.select('ul.parent > li'):
-                    for sub_category in category.select('ul.sub > li'):
-                        name = sub_category.get_text(strip=True)
-                        a_tag = sub_category.select_one('a')
-                        if a_tag and a_tag.get('href'):
-                            url = a_tag['href']
-                            if not url.startswith('http'):
-                                url = self.base_url + url
-                            self.scrape_category(url, name, writer)
+        else:
+            print('Không tìm thấy menu')
 
-        except Exception as e:
-            print(f"Lỗi chính: {e}")
-        finally:
-            self.driver.quit()
+except Exception as e:
+    print(f"Lỗi khi mở trang chủ: {e}")
 
-if __name__ == '__main__':
-    scraper = NewsScraper()
-    scraper.run()
+finally:
+    driver.quit()
+
+print("Hoàn tất quá trình thu thập dữ liệu.")
