@@ -16,12 +16,12 @@ csv_file = 'dataset_paper_tuoitre.csv'
 base_url = 'https://tuoitre.vn'
 
 # 🔹 Xóa nội dung file CSV nhưng giữ lại tiêu đề
-if os.path.exists(csv_file):
-    with open(csv_file, "w", encoding="utf-8", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerow(["Source", "URL", "Category", "Keyword", "Time", "Title", "Content"])  # Ghi header lại
-else:
-    print(f"File {csv_file} chưa tồn tại, sẽ tạo mới khi ghi dữ liệu.")
+# if os.path.exists(csv_file):
+#     with open(csv_file, "w", encoding="utf-8", newline="") as file:
+#         writer = csv.writer(file)
+#         writer.writerow(["Source", "URL", "Category", "Keyword", "Time", "Title", "Content"])  # Ghi header lại
+# else:
+#     print(f"File {csv_file} chưa tồn tại, sẽ tạo mới khi ghi dữ liệu.")
 
 # 🛠 Hàm khởi tạo driver
 def init_driver():
@@ -103,8 +103,9 @@ try:
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     categories = soup.select('ul.menu-nav > li > a')
 
-    with open(csv_file, mode='a', encoding='utf-8', newline='') as file:
+    with open(csv_file, mode='w', encoding='utf-8', newline='') as file:
         writer = csv.writer(file)
+        writer.writerow(["Source", "URL", "Category", "Keyword", "Time", "Title", "Content"])
         
         for cat in categories:
             category_url = f"{base_url}{cat['href']}"
