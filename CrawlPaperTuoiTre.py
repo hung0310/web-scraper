@@ -49,7 +49,7 @@ def wait_for_element(driver, by, value, timeout=10):
 def load_crawled_urls(csv_file):
     crawled_urls = set()
     try:
-        with open(csv_file, mode='r', encoding='utf-8') as file:
+        with open(csv_file, mode='r', encoding='utf-8-sig') as file:
             reader = csv.reader(file)
             next(reader, None)  # Bỏ qua header
             for row in reader:
@@ -103,7 +103,7 @@ try:
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     categories = soup.select('ul.menu-nav > li > a')
 
-    with open(csv_file, mode='w', encoding='utf-8', newline='') as file:
+    with open(csv_file, mode='w', encoding='utf-8-sig', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(["Source", "URL", "Category", "Keyword", "Time", "Title", "Content"])
         

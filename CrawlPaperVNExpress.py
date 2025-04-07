@@ -45,7 +45,7 @@ try:
     soup_categories_paper = BeautifulSoup(driver.page_source, 'html.parser')
     soup_categories = soup_categories_paper.select('ul.parent > li')
 
-    with open(csv_file, mode='w', encoding='utf-8', newline='') as file:
+    with open(csv_file, mode='w', encoding='utf-8-sig', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(["Source", "URL", "Category", "Keyword", "Time", "Title", "Content"])
         
