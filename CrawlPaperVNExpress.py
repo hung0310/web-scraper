@@ -14,7 +14,7 @@ options = Options()
 options.add_argument("--headless")  # Bỏ comment dòng này nếu muốn chạy ẩn
 
 driver = webdriver.Chrome(options=options)
-driver.set_page_load_timeout(120)
+driver.set_page_load_timeout(180)
 
 base_url = 'https://vnexpress.net'
 csv_file = 'dataset_paper_vnexpress.csv'
@@ -133,6 +133,7 @@ try:
                                                 try:
                                                     print(f"Đang xử lý bài viết: {href_article_data}")
                                                     driver.get(href_article_data)
+                                                    time.sleep(2)
                                                     soup_detail_article = BeautifulSoup(driver.page_source, 'html.parser')
                                                     
                                                     keyword_elems = driver.find_elements(By.CLASS_NAME, 'item-tag')

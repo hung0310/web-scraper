@@ -2,7 +2,7 @@ name: Crawl News
 
 on:
   schedule:
-    - cron: '0 19 * * *'  # 2 giờ sáng UTC (9 giờ sáng VN)
+    - cron: '0 18 * * *'  # 2 giờ sáng UTC (9 giờ sáng VN)
   workflow_dispatch:
 
 jobs:
@@ -32,6 +32,10 @@ jobs:
       - name: Crawl VNExpress
         run: python CrawlPaperVNExpress.py
 
+      # Crawl ZNews
+      - name: Crawl ZNews
+        run: python CrawlPaperZNews.py
+
       # Commit kết quả
       - name: Commit Results
         run: |
@@ -51,7 +55,7 @@ jobs:
           server_port: 465
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
-          subject: 'Crawl data Tuoi Tre and VN Express'
+          subject: 'Crawl paper'
           body: 'Crawl completed successfully. Check the results in the repository.'
           to: nth0326zz@gmail.com
           from: 'Crawl Paper Web Scraper'
