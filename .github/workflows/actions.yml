@@ -41,7 +41,7 @@ jobs:
         run: |
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
-          git add dataset_paper_tuoitre.csv dataset_paper_vnexpress.csv
+          git add dataset_paper_tuoitre.csv dataset_paper_vnexpress.csv dataset_paper_znews.csv
           git commit -m "Update crawled data - $(date)" || echo "No changes to commit"
           git push
         env:
