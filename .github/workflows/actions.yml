@@ -2,7 +2,7 @@ name: Crawl News
 
 on:
   schedule:
-    - cron: '0 5 * * *'  # 2 giờ sáng UTC (9 giờ sáng VN)
+    - cron: '0 19 * * *'  # 2 giờ sáng UTC (9 giờ sáng VN)
   workflow_dispatch:
 
 jobs:
@@ -25,16 +25,20 @@ jobs:
           pip install -r requirements.txt
 
       # Crawl Tuổi Trẻ
-      # - name: Crawl Tuoi Tre
-      #   run: python CrawlPaperTuoiTre.py
+      - name: Crawl Tuoi Tre
+        run: python CrawlPaperTuoiTre.py
 
       # Crawl VNExpress
-      # - name: Crawl VNExpress
-      #   run: python CrawlPaperVNExpress.py
+      - name: Crawl VNExpress
+        run: python CrawlPaperVNExpress.py
 
       # Crawl ZNews
       - name: Crawl ZNews
         run: python CrawlPaperZNews.py
+
+      # Crawl ZNews
+      - name: Data processing
+        run: python ConnectAndSave.py
 
       # Commit kết quả
       # dataset_paper_tuoitre.csv dataset_paper_vnexpress.csv 
@@ -42,7 +46,7 @@ jobs:
         run: |
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
-          git add dataset_paper_znews.csv
+          git add dataset_paper_tuoitre.csv dataset_paper_vnexpress.csv dataset_paper_znews.csv
           git commit -m "Update crawled data - $(date)" || echo "No changes to commit"
           git push
         env:
