@@ -183,15 +183,20 @@ try:
                                 time_text = time_elem.get_text(strip=True)
                                 try:
                                     article_date = datetime.strptime(time_text, "%d/%m/%Y").date()
+                                    year = article_date.year
                                     logging.info(f"Bài {article_href}: Ngày {article_date}")
-                                    if article_date == yesterday.date():
+                                    # if article_date == yesterday.date():
+                                    #     article_hrefs.add(article_href)
+                                    # elif article_date < yesterday.date():
+                                    #     logging.info(f"Dừng scroll trong {category_name}, phát hiện bài cũ: {article_date}")
+                                    #     stop_scroll = True
+                                    #     break
+                                    # else:
+                                    #     continue
+                                    if year >= 2025:
                                         article_hrefs.add(article_href)
-                                    elif article_date < yesterday.date():
-                                        logging.info(f"Dừng scroll trong {category_name}, phát hiện bài cũ: {article_date}")
-                                        stop_scroll = True
-                                        break
                                     else:
-                                        continue
+                                        break
                                 except ValueError:
                                     logging.warning(f"Không thể parse ngày {time_text} cho bài {article_href}")
                                     continue
