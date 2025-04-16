@@ -1,16 +1,17 @@
 import psycopg2
 from psycopg2 import Error
 import csv
+import os
 import re
 import pandas as pd
 from pyvi import ViTokenizer
 
 db_params = {
-    "dbname": "PBL7",
-    "user": "avnadmin",
-    "password": "AVNS_YTPX-cSc4J5wj3wEVLv",
-    "host": "pg-b86005-nodejs-tutorial.c.aivencloud.com",
-    "port": "18400",
+    "dbname": os.getenv("DB_NAME"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "host": os.getenv("DB_HOST"),
+    "port": os.getenv("DB_PORT"),
     "sslmode": "require"
 }
 

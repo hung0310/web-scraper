@@ -16,7 +16,7 @@ from bs4 import BeautifulSoup
 logging.basicConfig(level=logging.INFO, filename='crawler.log', format='%(asctime)s - %(levelname)s - %(message)s')
 
 yesterday = datetime.now() - timedelta(days=1)
-csv_file = 'dataset_paper_znews.csv'
+csv_file = 'dataset_paper_znews_1.csv'
 base_url = 'https://znews.vn'
 
 # Danh sách danh mục cần loại bỏ
@@ -25,7 +25,8 @@ EXCLUDED_CATEGORIES = [
     'Tác giả',
     'Thế giới sách',
     'Cuốn sách tôi đọc',
-    'Nghiên cứu xuất bản'
+    'Nghiên cứu xuất bản',
+    'Kinh doanh'
 ]
 
 # 🛠 Hàm khởi tạo driver
