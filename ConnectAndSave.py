@@ -15,9 +15,17 @@ db_params = {
     "sslmode": "require"
 }
 
-def preprocess_and_save(csv_file_path):
+def preprocess_and_save(csv_file_path, paper):
     df = pd.read_csv(csv_file_path)
-    df['Time'] = pd.to_datetime(df['Time'], format='%d/%m/%Y %H:%M GMT+7')
+    
+    if paper == 'tuoitre':
+            df['Time'] = pd.to_datetime(df['Time'], format='%d/%m/%Y %H:%M GMT+7')
+    else:
+        df['Time'] = df['Time'].str.replace(r'^.*?,\s*', '', regex=True)
+        df['Time'] = df['Time'].str.replace(r'\s*\(GMT\+7\)', '', regex=True)
+
+        df['Time'] = pd.to_datetime(df['Time'], format='%d/%m/%Y %H:%M')
+    
     df['Year'] = df['Time'].dt.year
     df['Month'] = df['Time'].dt.month
     df['Day'] = df['Time'].dt.day
@@ -76,4 +84,4 @@ if __name__ == "__main__":
     paper_dataset = ['tuoitre', 'vnexpress', 'znews']
     for paper in paper_dataset:
         csv_file_path = f"dataset_paper_{paper}.csv"
-        preprocess_and_save(csv_file_path)
+        preprocess_and_save(csv_file_path, paper)
