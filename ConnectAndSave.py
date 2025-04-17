@@ -19,13 +19,22 @@ def preprocess_and_save(csv_file_path, paper):
     df = pd.read_csv(csv_file_path)
     
     if paper == 'tuoitre':
-            df['Time'] = pd.to_datetime(df['Time'], format='%d/%m/%Y %H:%M GMT+7')
+        df['Time'] = pd.to_datetime(df['Time'], format='%d/%m/%Y %H:%M GMT+7', errors='coerce')
     else:
+        # Loại bỏ tên ngày và dấu phẩy đầu tiên
         df['Time'] = df['Time'].str.replace(r'^.*?,\s*', '', regex=True)
+        # Loại bỏ (GMT+7) và dấu phẩy trước giờ
+        df['Time'] = df['Time'].str.replace(r',\s*(?=\d{1,2}:\d{2}\s*\(GMT\+7\))', ' ', regex=True)
         df['Time'] = df['Time'].str.replace(r'\s*\(GMT\+7\)', '', regex=True)
-
-        df['Time'] = pd.to_datetime(df['Time'], format='%d/%m/%Y %H:%M')
+        # Chuẩn hóa ngày: 13/4/2025 -> 13/04/2025
+        df['Time'] = df['Time'].str.replace(r'(\d+)/(\d+)/(\d+)', r'\1/0\2/\3', regex=True)
+        df['Time'] = pd.to_datetime(df['Time'], format='%d/%m/%Y %H:%M', errors='coerce')
     
+    invalid_rows = df['Time'].isna().sum()
+    if invalid_rows > 0:
+        print(f"Cảnh báo: {invalid_rows} bản ghi trong {csv_file_path} có thời gian không hợp lệ, sẽ bị bỏ qua.")
+        df = df.dropna(subset=['Time'])
+
     df['Year'] = df['Time'].dt.year
     df['Month'] = df['Time'].dt.month
     df['Day'] = df['Time'].dt.day
@@ -81,7 +90,7 @@ def preprocess_and_save(csv_file_path, paper):
             connection.close()
 
 if __name__ == "__main__":
-    paper_dataset = ['tuoitre', 'vnexpress', 'znews']
+    paper_dataset = ['tuoitre', 'vn WikiExpress', 'znews']
     for paper in paper_dataset:
         csv_file_path = f"dataset_paper_{paper}.csv"
         preprocess_and_save(csv_file_path, paper)
