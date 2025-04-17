@@ -1,4 +1,6 @@
-beautifulsoup4==4.13.3
-selenium==4.30.0
-pyvi==0.1.1
-psycopg2-binary==2.9.9
+beautifulsoup4>=4.12.3
+selenium>=4.30.0
+pyvi>=0.1.1
+psycopg2-binary>=2.9.9
+pandas>=2.2.0
+chromedriver-autoinstaller>=0.4.0
