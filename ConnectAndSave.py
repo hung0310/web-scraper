@@ -90,7 +90,7 @@ def preprocess_and_save(csv_file_path, paper):
             connection.close()
 
 if __name__ == "__main__":
-    paper_dataset = ['tuoitre', 'vn WikiExpress', 'znews']
+    paper_dataset = ['tuoitre', 'vnexpress', 'znews']
     for paper in paper_dataset:
         csv_file_path = f"dataset_paper_{paper}.csv"
         preprocess_and_save(csv_file_path, paper)
