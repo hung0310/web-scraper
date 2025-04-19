@@ -2,7 +2,7 @@ name: Crawl News
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # 2 giờ sáng Việt Nam (tương đương 19:00 UTC)
+    - cron: '0 19 * * *'  # 2 giờ sáng Việt Nam (tương đương 19:00 UTC)
   workflow_dispatch:
 
 jobs:

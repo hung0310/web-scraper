@@ -16,7 +16,18 @@ db_params = {
 }
 
 def preprocess_and_save(csv_file_path, paper):
-    df = pd.read_csv(csv_file_path)
+    if not os.path.exists(csv_file_path) or os.path.getsize(csv_file_path) == 0:
+        print(f"File {csv_file_path} không tồn tại hoặc rỗng. Bỏ qua.")
+        return
+
+    try:
+        df = pd.read_csv(csv_file_path)
+    except pd.errors.EmptyDataError:
+        print(f"File {csv_file_path} không chứa dữ liệu hợp lệ (EmptyDataError). Bỏ qua.")
+        return
+    except Exception as e:
+        print(f"Lỗi không xác định khi đọc file {csv_file_path}: {e}")
+        return
     
     if paper == 'tuoitre':
         df['Time'] = pd.to_datetime(df['Time'], format='%d/%m/%Y %H:%M GMT+7', errors='coerce')
