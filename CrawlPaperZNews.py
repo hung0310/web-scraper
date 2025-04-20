@@ -16,7 +16,7 @@ from bs4 import BeautifulSoup
 logging.basicConfig(level=logging.INFO, filename='crawler.log', format='%(asctime)s - %(levelname)s - %(message)s')
 
 yesterday = datetime.now() - timedelta(days=1)
-csv_file = 'dataset_paper_znews_1.csv'
+csv_file = 'dataset_paper_znews.csv'
 base_url = 'https://znews.vn'
 
 # Danh sách danh mục cần loại bỏ
@@ -26,7 +26,6 @@ EXCLUDED_CATEGORIES = [
     'Thế giới sách',
     'Cuốn sách tôi đọc',
     'Nghiên cứu xuất bản',
-    'Kinh doanh'
 ]
 
 # 🛠 Hàm khởi tạo driver
@@ -41,7 +40,7 @@ def init_driver():
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_argument("--dns-prefetch-disable")
     driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(120)
+    driver.set_page_load_timeout(180)
     return driver
 
 # 🛠 Hàm chờ phần tử
@@ -138,6 +137,7 @@ try:
             href_child = []
             category_url = f"{cate['href']}"
             category_name = cate.get_text(strip=True)
+            # href_child.append(category_url)
             print(category_name)
             if category_name in EXCLUDED_CATEGORIES:
                 logging.info(f"Bỏ qua danh mục: {category_name}")
@@ -148,91 +148,76 @@ try:
             driver.get(category_url)
             wait_for_element(driver, By.CSS_SELECTOR, 'div.article-list', timeout=10)
             
-            soup_categories_child = BeautifulSoup(driver.page_source, 'html.parser')
-            categories_child = soup_categories_child.select('section#category-header > ul > li > a')
-            
-            if categories_child:
-                for child in categories_child:
-                    child_href = child['href']
-                    href_child.append(child_href)
-            else:
-                categories_child_2 = soup_categories_child.select('section#category-header > ul.gm-autoshow > div.gm-scroll-view > li > a')
-                for child in categories_child_2:
-                    child_href = child['href']
-                    href_child.append(child_href)
-            
-            for href in href_child:
-                driver.get(href)
-                wait_for_element(driver, By.CSS_SELECTOR, 'div.article-list', timeout=10)
-                
-                article_hrefs = set()
-                last_height = driver.execute_script("return document.body.scrollHeight")
-                stop_scroll = False
-                max_scrolls = 50
-                scroll_count = 0
-                
-                while not stop_scroll and scroll_count < max_scrolls:
-                    soup_articles = BeautifulSoup(driver.page_source, 'html.parser')
-                    articles = soup_articles.select('div.article-list > article.article-item')
-                    logging.info(f"Tìm thấy {len(articles)} bài trong trang")
-                    
-                    for article in articles:
-                        try:
-                            article_href = article.select_one('p.article-thumbnail > a')['href']
-                            time_elem = article.select_one('span.article-publish > span.date')
-                            if time_elem:
-                                time_text = time_elem.get_text(strip=True)
-                                try:
-                                    article_date = datetime.strptime(time_text, "%d/%m/%Y").date()
-                                    year = article_date.year
-                                    logging.info(f"Bài {article_href}: Ngày {article_date}")
-                                    if article_date == yesterday.date():
-                                        article_hrefs.add(article_href)
-                                    elif article_date < yesterday.date():
-                                        logging.info(f"Dừng scroll trong {category_name}, phát hiện bài cũ: {article_date}")
-                                        stop_scroll = True
-                                        break
-                                    else:
-                                        continue
-                                    # if year >= 2025:
-                                    #     article_hrefs.add(article_href)
-                                    # else:
-                                    #     break
-                                except ValueError:
-                                    logging.warning(f"Không thể parse ngày {time_text} cho bài {article_href}")
-                                    continue
-                            else:
-                                logging.warning(f"Không tìm thấy thẻ ngày cho bài {article_href}")
-                        except Exception as e:
-                            logging.error(f"Lỗi khi xử lý bài {article_href}: {e}")
-                            continue
-                    
-                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                    wait_for_element(driver, By.CSS_SELECTOR, 'div.article-list', timeout=5)
-                    
-                    new_height = driver.execute_script("return document.body.scrollHeight")
-                    if new_height == last_height:
-                        break
-                    last_height = new_height
-                    scroll_count += 1
-                
-                logging.info(f"Tìm thấy {len(article_hrefs)} bài phù hợp trong {href}")
-                
-                for article_href in article_hrefs:
-                    if article_count >= max_articles_before_restart:
-                        logging.info("Khởi động lại driver để làm mới tài nguyên.")
-                        driver.quit()
-                        driver = init_driver()
-                        article_count = 0
-                    
-                    if not crawl_article(driver, article_href, writer, crawled_urls):
-                        logging.warning("Khởi động lại driver do lỗi nghiêm trọng.")
-                        driver.quit()
-                        driver = init_driver()
-                        continue
-                    
-                    article_count += 1
+            # ===========================================================
+            article_hrefs = set()
+            last_height = driver.execute_script("return document.body.scrollHeight")
+            stop_scroll = False
 
+            while not stop_scroll:
+                soup_articles = BeautifulSoup(driver.page_source, 'html.parser')
+                articles = soup_articles.select('div.article-list > article.article-item')
+                logging.info(f"Tìm thấy {len(articles)} bài trong trang {category_url}")
+
+                for article in articles:
+                    try:
+                        article_href = article.select_one('p.article-thumbnail > a')['href']
+                        time_elem = article.select_one('span.article-publish > span.date')
+                        if time_elem:
+                            time_text = time_elem.get_text(strip=True)
+                            try:
+                                article_date = datetime.strptime(time_text, "%d/%m/%Y").date()
+                                year = article_date.year
+                                logging.info(f"Bài {article_href}: Ngày {article_date}")
+                                if article_date == yesterday.date():
+                                    article_hrefs.add(article_href)
+                                elif article_date < yesterday.date():
+                                    logging.info(f"Dừng scroll trong {category_name}, phát hiện bài cũ: {article_date}")
+                                    stop_scroll = True
+                                    break
+                                else:
+                                    continue
+                                # if year >= 2025:
+                                #     article_hrefs.add(article_href)
+                                # else:
+                                #     break
+                            except ValueError:
+                                logging.warning(f"Không thể parse ngày {time_text} cho bài {article_href}")
+                                continue
+                        else:
+                            logging.warning(f"Không tìm thấy thẻ ngày cho bài {article_href}")
+                    except Exception as e:
+                        logging.error(f"Lỗi khi xử lý bài {article_href}: {e}")
+                        continue
+
+                if stop_scroll:
+                    break
+
+                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                wait_for_element(driver, By.CSS_SELECTOR, 'div.article-list', timeout=5)
+
+                new_height = driver.execute_script("return document.body.scrollHeight")
+                if new_height == last_height:
+                    logging.info(f"Dừng scroll trong {category_name}, không còn nội dung mới.")
+                    break
+                last_height = new_height
+                
+            # logging.info(f"Tìm thấy {len(article_hrefs)} bài phù hợp trong {href}")
+                
+            for article_href in article_hrefs:
+                if article_count >= max_articles_before_restart:
+                    logging.info("Khởi động lại driver để làm mới tài nguyên.")
+                    driver.quit()
+                    driver = init_driver()
+                    article_count = 0
+                
+                if not crawl_article(driver, article_href, writer, crawled_urls):
+                    logging.warning("Khởi động lại driver do lỗi nghiêm trọng.")
+                    driver.quit()
+                    driver = init_driver()
+                    continue
+                
+                article_count += 1
+            # ===========================================================
 except Exception as e:
     logging.error(f"Lỗi chính: {e}")
 finally:
