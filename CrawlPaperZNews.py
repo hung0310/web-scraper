@@ -127,11 +127,9 @@ try:
     soup_panel = BeautifulSoup(driver.page_source, 'html.parser')
     soup_categories = soup_panel.select('div.page-wrapper > ul.normal-category > li > a')
     
-    file_exists = os.path.isfile(csv_file)
-    with open(csv_file, mode='w' if file_exists else 'w', encoding='utf-8-sig', newline='') as file:
+    with open(csv_file, mode='w', encoding='utf-8-sig', newline='') as file:
         writer = csv.writer(file)
-        if not file_exists:
-            writer.writerow(["Source", "URL", "Category", "Keyword", "Time", "Title", "Content"])
+        writer.writerow(["Source", "URL", "Category", "Keyword", "Time", "Title", "Content"])
         
         for cate in soup_categories:
             href_child = []

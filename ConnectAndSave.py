@@ -19,7 +19,7 @@ def preprocess_and_save(csv_file_path, paper):
     if not os.path.exists(csv_file_path) or os.path.getsize(csv_file_path) == 0:
         print(f"File {csv_file_path} không tồn tại hoặc rỗng. Bỏ qua.")
         return
-
+    
     try:
         df = pd.read_csv(csv_file_path)
     except pd.errors.EmptyDataError:
@@ -28,6 +28,8 @@ def preprocess_and_save(csv_file_path, paper):
     except Exception as e:
         print(f"Lỗi không xác định khi đọc file {csv_file_path}: {e}")
         return
+    
+    print(f"Các cột trong {csv_file_path}: {df.columns.tolist()}")
     
     if paper == 'tuoitre':
         df['Time'] = pd.to_datetime(df['Time'], format='%d/%m/%Y %H:%M GMT+7', errors='coerce')
@@ -64,41 +66,41 @@ def preprocess_and_save(csv_file_path, paper):
         return ' '.join([word for word in tokens.split() if word not in stop_words])
 
     df['Tokens'] = df['Text'].apply(preprocess_text)
+    print(df['Tokens'])
+    # try:
+    #     connection = psycopg2.connect(**db_params)
+    #     cursor = connection.cursor()
 
-    try:
-        connection = psycopg2.connect(**db_params)
-        cursor = connection.cursor()
+    #     insert_query = """
+    #     INSERT INTO paper (source, url, category, keyword, time, title, content, tokens)
+    #     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    #     """
 
-        insert_query = """
-        INSERT INTO paper (source, url, category, keyword, time, title, content, tokens)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """
+    #     records = list(zip(
+    #         df['Source'],
+    #         df['URL'],
+    #         df['Category'],
+    #         df['Keyword'],
+    #         df['Time'],
+    #         df['Title'],
+    #         df['Content'],
+    #         df['Tokens']
+    #     ))
 
-        records = list(zip(
-            df['Source'],
-            df['URL'],
-            df['Category'],
-            df['Keyword'],
-            df['Time'],
-            df['Title'],
-            df['Content'],
-            df['Tokens']
-        ))
+    #     cursor.executemany(insert_query, records)
+    #     connection.commit()
+    #     print(f"Lưu {cursor.rowcount} bản ghi từ {csv_file_path} thành công!")
 
-        cursor.executemany(insert_query, records)
-        connection.commit()
-        print(f"Lưu {cursor.rowcount} bản ghi từ {csv_file_path} thành công!")
+    # except (Exception, Error) as error:
+    #     print("Lỗi khi lưu dữ liệu:", error)
+    #     if connection:
+    #         connection.rollback()
 
-    except (Exception, Error) as error:
-        print("Lỗi khi lưu dữ liệu:", error)
-        if connection:
-            connection.rollback()
-
-    finally:
-        if cursor:
-            cursor.close()
-        if connection:
-            connection.close()
+    # finally:
+    #     if cursor:
+    #         cursor.close()
+    #     if connection:
+    #         connection.close()
 
 if __name__ == "__main__":
     paper_dataset = ['tuoitre', 'vnexpress', 'znews']
