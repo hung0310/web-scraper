@@ -9,6 +9,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
 from collections import Counter
 from datetime import datetime, timedelta
+import pytz
 import time
 
 db_params = {
@@ -139,7 +140,8 @@ def run_lda_model():
         connection = psycopg2.connect(**db_params)
         cursor = connection.cursor()
 
-        yesterday = datetime.now() - timedelta(days=1)
+        timezone = pytz.timezone("Asia/Ho_Chi_Minh")
+        yesterday = datetime.now(timezone) - timedelta(days=1)
         formatted_date = yesterday.strftime("%Y-%m-%d")  # Định dạng thành 'YYYY-MM-DD'
         print(formatted_date)
 
@@ -152,7 +154,6 @@ def run_lda_model():
         date_pattern = f"{formatted_date}%"
 
         df = pd.read_sql(sql_query, connection, params=(date_pattern,))
-        print(df['time'].head())
         df['time'] = pd.to_datetime(df['time'], format='%Y-%m-%d %H:%M:%S')
         df['year'] = df['time'].dt.year
         df['month'] = df['time'].dt.month
