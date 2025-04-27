@@ -13,13 +13,19 @@ import pytz
 import time
 
 db_params = {
-    "dbname": "PBL7",
-    "user": "avnadmin",
-    "password": "AVNS_YTPX-cSc4J5wj3wEVLv",
-    "host": "pg-b86005-nodejs-tutorial.c.aivencloud.com",
-    "port": "18400",
+    "dbname": os.getenv("DB_NAME"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "host": os.getenv("DB_HOST"),
+    "port": os.getenv("DB_PORT"),
     "sslmode": "require"
 }
+
+def clean_text(text):
+    if not isinstance(text, str):
+        return ''
+    text = re.sub(r'\s+', ' ', text.strip())
+    return text
 
 def preprocess_and_save(csv_file_path, paper):
     if not os.path.exists(csv_file_path) or os.path.getsize(csv_file_path) == 0:
@@ -34,6 +40,10 @@ def preprocess_and_save(csv_file_path, paper):
     except Exception as e:
         print(f"Lỗi không xác định khi đọc file {csv_file_path}: {e}")
         return
+    
+    # Làm sạch khoảng trắng trong cột Title và Content
+    df['Title'] = df['Title'].apply(clean_text)
+    df['Content'] = df['Content'].apply(clean_text)
     
     if paper == 'tuoitre':
         df['Time'] = pd.to_datetime(df['Time'], format='%d/%m/%Y %H:%M GMT+7', errors='coerce')
@@ -70,13 +80,9 @@ def preprocess_and_save(csv_file_path, paper):
         return ' '.join([word for word in tokens.split() if word not in stop_words])
 
     df['Tokens'] = df['Text'].apply(preprocess_text)
-    
-    connection = None
-    cursor = None
 
     try:
         connection = psycopg2.connect(**db_params)
-        connection.autocommit = True 
         cursor = connection.cursor()
 
         insert_query = """
@@ -227,10 +233,9 @@ def run_lda_model():
 
 
 if __name__ == "__main__":
-    paper_dataset = ['tuoitre']
-    # paper_dataset = ['tuoitre', 'vnexpress', 'znews']
+    paper_dataset = ['tuoitre', 'vnexpress', 'znews']
     for paper in paper_dataset:
-        csv_file_path = f"dataset_paper_{paper}_full.csv"
+        csv_file_path = f"dataset_paper_{paper}.csv"
         preprocess_and_save(csv_file_path, paper)
     
     time.sleep(5)
