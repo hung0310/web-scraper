@@ -11,6 +11,7 @@ from collections import Counter
 from datetime import datetime, timedelta
 import pytz
 import time
+import hashlib
 
 db_params = {
     "dbname": os.getenv("DB_NAME"),
@@ -117,6 +118,10 @@ def preprocess_and_save(csv_file_path, paper):
             connection.close()
 
 
+def get_data_hash(df):
+    return hashlib.md5(df['tokens'].to_string().encode()).hexdigest()
+
+
 # Hàm để lấy category và keyword phổ biến nhất trong mỗi chủ đề
 def analyze_category_keyword(df):
     topic_info = {}
@@ -136,10 +141,14 @@ def analyze_category_keyword(df):
         keyword_counts = Counter(all_keywords)
         # Lấy top 3 keyword phổ biến
         top_keywords = [kw for kw, count in keyword_counts.most_common(3)]
+
+        # Loại bỏ từ khóa trùng với top_category
+        top_category_lower = top_category.lower()
+        filtered_keywords = [kw for kw in top_keywords if kw.lower() != top_category_lower]
         
         topic_info[topic_idx] = {
             'top_category': top_category,
-            'top_keywords': top_keywords
+            'top_keywords': filtered_keywords
         }
     
     return topic_info
@@ -172,6 +181,9 @@ def run_lda_model():
         df['month'] = df['time'].dt.month
         df['day'] = df['time'].dt.day
         df.loc[df['keyword'].isin(['NaN', 'Null']), 'keyword'] = df['category']
+
+        data_hash = get_data_hash(df)
+        hash_key = f"hash_{year}_{month}"
 
         # Vector hóa văn bản
         vectorizer = CountVectorizer(max_features=2000)
@@ -209,11 +221,12 @@ def run_lda_model():
         
         update_query = """
             UPDATE paper
-            SET topic_name = %s
+            SET topic = %s, topic_name = %s
             WHERE id = %s
         """
 
         records = list(zip(
+            df['Topic'],
             df['Topic_Name'],
             df['id']
         ))
@@ -221,6 +234,50 @@ def run_lda_model():
         cursor.executemany(update_query, records)
         connection.commit()
         print("Cập nhật topic name thành công")
+
+        feature_names = vectorizer.get_feature_names_out()
+        keywords_data = {}
+        for topic_idx, topic in enumerate(lda.components_):
+            topic_name = topic_names_manual.get(topic_idx, f"topic_{topic_idx}")
+            top_category = topic_info[topic_idx]['top_category'] if topic_idx in topic_info else "Unknown"
+            top_words = [
+                {
+                    "text": feature_names[i],
+                    "value": round(topic[i] * 100 / topic.sum(), 1),
+                    "category": top_category
+                }
+                for i in topic.argsort()[:-11:-1]
+            ]
+            keywords_data[topic_name] = top_words
+
+            delete_query = """
+                DELETE FROM topic_keywords 
+                WHERE year = %s AND month = %s AND topic_name = %s
+            """
+            cursor.execute(delete_query, (year, month, topic_name))
+
+            # Thêm từ khóa mới
+            insert_query = """
+                INSERT INTO topic_keywords (year, month, topic_name, keyword, value, category)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            insert_data = [
+                (year, month, topic_name, word["text"], word["value"], word["category"])
+                for word in top_words
+            ]
+            cursor.executemany(insert_query, insert_data)
+        
+        # Cập nhật cache
+        cache_query = """
+            INSERT INTO cache (key, value)
+            VALUES (%s, %s)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+        """
+        cursor.execute(cache_query, (hash_key, data_hash))
+
+        # Commit thay đổi
+        connection.commit()
+        print("Cập nhật keywords thành công")
 
     except (Exception, Error) as error:
         print("Lỗi khi lưu dữ liệu:", error)
