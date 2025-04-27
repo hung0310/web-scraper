@@ -7,11 +7,11 @@ import pandas as pd
 from pyvi import ViTokenizer
 
 db_params = {
-    "dbname": os.getenv("DB_NAME"),
-    "user": os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD"),
-    "host": os.getenv("DB_HOST"),
-    "port": os.getenv("DB_PORT"),
+    "dbname": "PBL7",
+    "user": "avnadmin",
+    "password": "AVNS_YTPX-cSc4J5wj3wEVLv",
+    "host": "pg-b86005-nodejs-tutorial.c.aivencloud.com",
+    "port": "18400",
     "sslmode": "require"
 }
 
@@ -64,9 +64,13 @@ def preprocess_and_save(csv_file_path, paper):
         return ' '.join([word for word in tokens.split() if word not in stop_words])
 
     df['Tokens'] = df['Text'].apply(preprocess_text)
+    
+    connection = None
+    cursor = None
 
     try:
         connection = psycopg2.connect(**db_params)
+        connection.autocommit = True 
         cursor = connection.cursor()
 
         insert_query = """
@@ -101,7 +105,8 @@ def preprocess_and_save(csv_file_path, paper):
             connection.close()
 
 if __name__ == "__main__":
-    paper_dataset = ['tuoitre', 'vnexpress', 'znews']
+    paper_dataset = ['tuoitre']
+    # paper_dataset = ['tuoitre', 'vnexpress', 'znews']
     for paper in paper_dataset:
-        csv_file_path = f"dataset_paper_{paper}.csv"
+        csv_file_path = f"dataset_paper_{paper}_full.csv"
         preprocess_and_save(csv_file_path, paper)

@@ -11,11 +11,13 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, StaleElementReferenceException
 from bs4 import BeautifulSoup
+import pytz
 
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO, filename='crawler.log', format='%(asctime)s - %(levelname)s - %(message)s')
 
-yesterday = datetime.now() - timedelta(days=1)
+vn_timezone = pytz.timezone('Asia/Ho_Chi_Minh')
+yesterday = datetime.now(vn_timezone) - timedelta(days=1)
 csv_file = 'dataset_paper_znews.csv'
 base_url = 'https://znews.vn'
 
@@ -162,10 +164,12 @@ try:
                         time_elem = article.select_one('span.article-publish > span.date')
                         if time_elem:
                             time_text = time_elem.get_text(strip=True)
+                            print('>>> time: ', time_text)
                             try:
                                 article_date = datetime.strptime(time_text, "%d/%m/%Y").date()
                                 year = article_date.year
                                 logging.info(f"Bài {article_href}: Ngày {article_date}")
+                                print(f'>>> article_date: {article_date} - yesterday: {yesterday.date()}')
                                 if article_date == yesterday.date():
                                     article_hrefs.add(article_href)
                                 elif article_date < yesterday.date():

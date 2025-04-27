@@ -9,16 +9,25 @@ import time
 import csv
 import random
 import os
+import pytz
 
 options = Options()
-options.add_argument("--headless")  # Bỏ comment dòng này nếu muốn chạy ẩn
-
+options.add_argument("--headless")
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--disable-gpu")
+options.add_argument("--disable-extensions")
+options.add_argument("--ignore-certificate-errors")
+options.add_argument("--disable-blink-features=AutomationControlled")
+options.add_argument("--dns-prefetch-disable")
 driver = webdriver.Chrome(options=options)
 driver.set_page_load_timeout(180)
 
 base_url = 'https://vnexpress.net'
 csv_file = 'dataset_paper_vnexpress.csv'
-yesterday = datetime.now() - timedelta(days=1)
+
+vn_timezone = pytz.timezone('Asia/Ho_Chi_Minh')
+yesterday = datetime.now(vn_timezone) - timedelta(days=1)
 processed_urls = set()
 
 def _extract_date_from_url(srcset):
