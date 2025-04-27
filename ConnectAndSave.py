@@ -142,7 +142,10 @@ def run_lda_model():
 
         timezone = pytz.timezone("Asia/Ho_Chi_Minh")
         yesterday = datetime.now(timezone) - timedelta(days=1)
-        formatted_date = yesterday.strftime("%Y-%m-%d")  # Định dạng thành 'YYYY-MM-DD'
+        # formatted_date = yesterday.strftime("%Y-%m-%d")  # Định dạng thành 'YYYY-MM-DD'
+        month = yesterday.month
+        year = yesterday.year
+        formatted_date = f"{year}-{month:02d}"  # Định dạng thành 'YYYY-MM'
         print(formatted_date)
 
         # Câu truy vấn SQL với parameterized query
