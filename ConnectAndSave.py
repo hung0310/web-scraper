@@ -167,6 +167,11 @@ def run_lda_model():
         date_pattern = f"{formatted_date}%"
 
         df = pd.read_sql(sql_query, connection, params=(date_pattern,))
+        
+        #=======================
+        # df = pd.read_sql(sql_query, connection, params=(date_pattern,), dtype={'tokens': str, 'content': str, 'title': str})
+        #=======================
+        
         df['time'] = pd.to_datetime(df['time'], format='%Y-%m-%d %H:%M:%S')
         df['year'] = df['time'].dt.year
         df['month'] = df['time'].dt.month

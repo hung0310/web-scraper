@@ -186,10 +186,19 @@ try:
                         date_str = article['href'].split("-")[-1][:8]
                         try:
                             article_date = datetime.strptime(date_str, "%Y%m%d").date()
-                            if article_date.year >= 2025:
+                            # if article_date.year >= 2025:
+                            #     article_hrefs.add(article_href)
+                            # else:
+                            #     logging.info(f"Dừng scroll trong {sub_category_name}, phát hiện bài cũ.")
+                            #     stop_scroll = True
+                            #     break
+                            
+                            if article_date == yesterday.date():
                                 article_hrefs.add(article_href)
-                            else:
-                                logging.info(f"Dừng scroll trong {sub_category_name}, phát hiện bài cũ.")
+                            elif article_date == datetime.now().date():
+                                continue
+                            elif article_date < yesterday.date():
+                                print(f"Dừng scroll trong {category_name}, phát hiện bài cũ.")
                                 stop_scroll = True
                                 break
                         except ValueError:
