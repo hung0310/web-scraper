@@ -255,6 +255,9 @@ def run_lda_model():
             ]
             keywords_data[topic_name] = top_words
 
+            for word in top_words:
+                print(f'{word["text"]} - {word["category"]}: {word["value"]}')
+
             delete_query = """
                 DELETE FROM topic_keywords 
                 WHERE year = %s AND month = %s AND topic_name = %s
