@@ -270,7 +270,7 @@ def run_lda_model():
                 VALUES (%s, %s, %s, %s, %s, %s)
             """
             insert_data = [
-                (year, month, topic_name, word["text"], word["value"], word["category"])
+                (year, month, topic_name, word["text"], float(word["value"]), word["category"])
                 for word in top_words
             ]
             cursor.executemany(insert_query, insert_data)
