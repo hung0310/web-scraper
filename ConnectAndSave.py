@@ -214,10 +214,10 @@ def run_lda_model():
             
             # Tạo nhãn mới dựa trên category và keyword
             # Ví dụ: lấy category và 1-2 keyword phổ biến
-            if top_keywords:
-                label = f"{top_category.lower()} {'_'.join(top_keywords[:2]).lower()}"
-            else:
-                label = top_category.lower()
+            # if top_keywords:
+            label = f"{'_'.join(top_keywords[:2]).lower()}"
+            # else:
+            #     label = top_category.lower()
                 
             topic_names_manual[topic_idx] = label.replace(' ', '_')
         
