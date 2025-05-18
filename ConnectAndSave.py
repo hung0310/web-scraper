@@ -91,6 +91,21 @@ def preprocess_and_save(csv_file_path, paper):
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
 
+        insert_query_week = """
+        INSERT INTO paper_week (source, url, category, keyword, time, title, content, tokens)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """
+
+        insert_query_quarter = """
+        INSERT INTO paper_quarter (source, url, category, keyword, time, title, content, tokens)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """
+
+        insert_query_year = """
+        INSERT INTO paper_year (source, url, category, keyword, time, title, content, tokens)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """
+
         records = list(zip(
             df['Source'],
             df['URL'],
@@ -103,6 +118,12 @@ def preprocess_and_save(csv_file_path, paper):
         ))
 
         cursor.executemany(insert_query, records)
+        time.sleep(3)
+        cursor.executemany(insert_query_week, records)
+        time.sleep(3)
+        cursor.executemany(insert_query_quarter, records)
+        time.sleep(3)
+        cursor.executemany(insert_query_year, records)
         connection.commit()
         print(f"Lưu {cursor.rowcount} bản ghi từ {csv_file_path} thành công!")
 
@@ -297,6 +318,409 @@ def run_lda_model():
         connection.close()
 
 
+def run_lda_model_week():
+    try:
+        print("Run LDA model for week")
+        connection = psycopg2.connect(**db_params)
+        cursor = connection.cursor()
+
+        timezone = pytz.timezone("Asia/Ho_Chi_Minh")
+        yesterday = datetime.now(timezone) - timedelta(days=1)
+
+        # Calculate week boundaries (Monday to Sunday)
+        week_start = yesterday - timedelta(days=yesterday.weekday())  # Monday
+        week_end = week_start + timedelta(days=6)  # Sunday
+        week_start_str = week_start.strftime("%Y-%m-%d")
+        week_end_str = week_end.strftime("%Y-%m-%d")
+        print(f"Processing week: {week_start_str} to {week_end_str}")
+
+        # Câu truy vấn SQL với parameterized query
+        sql_query = """
+            SELECT * FROM paper_week WHERE CAST(time AS TIMESTAMP) BETWEEN %s AND %s
+        """
+
+        df = pd.read_sql(sql_query, connection, params=(f"{week_start_str} 00:00:00", f"{week_end_str} 23:59:59"))
+        if df.empty:
+            print("No data for this week, skipping...")
+            return
+
+        df['time'] = pd.to_datetime(df['time'], format='%Y-%m-%d %H:%M:%S')
+        df['year'] = df['time'].dt.year
+        df['month'] = df['time'].dt.month
+        df['day'] = df['time'].dt.day
+        df.loc[df['keyword'].isin(['NaN', 'Null']), 'keyword'] = df['category']
+
+        # Vector hóa văn bản
+        vectorizer = CountVectorizer(max_features=2000)
+        X = vectorizer.fit_transform(df['tokens'])
+
+        # Mô hình LDA
+        num_topics = 10
+        lda = LatentDirichletAllocation(n_components=num_topics, random_state=42)
+        lda_output = lda.fit_transform(X)
+
+        # Gán chủ đề cho mỗi bài báo
+        df['Topic'] = lda_output.argmax(axis=1)
+
+        # Phân tích category và keyword
+        topic_info = analyze_category_keyword(df)
+        
+        # Tạo từ điển nhãn mới
+        topic_names_manual = {}
+        for topic_idx in topic_info.keys():
+            # Lấy thông tin category và keyword
+            top_category = topic_info[topic_idx]['top_category']
+            top_keywords = topic_info[topic_idx]['top_keywords']
+            
+            # Tạo nhãn mới dựa trên keyword
+            label = f"{'_'.join(top_keywords[:2]).lower()}"
+            
+            topic_names_manual[topic_idx] = label.replace(' ', '_')
+        
+        # Gán nhãn mới vào DataFrame
+        df['Topic_Name'] = df['Topic'].map(topic_names_manual)
+        
+        update_query = """
+            UPDATE paper_week
+            SET topic = %s, topic_name = %s
+            WHERE id = %s
+        """
+
+        records = list(zip(
+            df['Topic'],
+            df['Topic_Name'],
+            df['id']
+        ))
+
+        cursor.executemany(update_query, records)
+        connection.commit()
+        print("Cập nhật topic name thành công")
+
+        feature_names = vectorizer.get_feature_names_out()
+        keywords_data = {}
+        for topic_idx, topic in enumerate(lda.components_):
+            topic_name = topic_names_manual.get(topic_idx, f"topic_{topic_idx}")
+            top_category = topic_info[topic_idx]['top_category'] if topic_idx in topic_info else "Unknown"
+            top_words = [
+                {
+                    "text": feature_names[i],
+                    "value": round(topic[i] * 100 / topic.sum(), 1),
+                    "category": top_category
+                }
+                for i in topic.argsort()[:-11:-1]
+            ]
+            keywords_data[topic_name] = top_words
+            # print("topic_name:", topic_name)
+
+            # for word in top_words:
+            #     print(f'{word["text"]} - {word["category"]}: {word["value"]}')
+
+            delete_query = """
+                DELETE FROM topic_keywords_week 
+                WHERE start_date = %s AND end_date = %s
+            """
+            cursor.execute(delete_query, (week_start_str, week_end_str))
+
+            # Thêm từ khóa mới
+            insert_query = """
+                INSERT INTO topic_keywords_week (start_date, end_date, topic_name, keyword, value, category)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            insert_data = [
+                (week_start_str, week_end_str, topic_name, word["text"], word["value"], word["category"])
+                for word in top_words
+            ]
+            cursor.executemany(insert_query, insert_data)
+        
+        # Commit thay đổi
+        connection.commit()
+        print("Cập nhật keywords thành công")
+
+    except (Exception, Error) as error:
+        print("Lỗi khi lưu dữ liệu:", error)
+        if connection:
+            connection.rollback()
+    
+    finally:
+        cursor.close()
+        connection.close()
+
+
+def run_lda_model_quarter():
+    try:
+        print("Run LDA model for quarter")
+        connection = psycopg2.connect(**db_params)
+        cursor = connection.cursor()
+
+        timezone = pytz.timezone("Asia/Ho_Chi_Minh")
+        yesterday = datetime.now(timezone) - timedelta(days=1)
+
+        month = yesterday.month
+        if 1 <= month <= 3:
+            quarter = 1
+            start_month, end_month = 1, 3
+        elif 4 <= month <= 6:
+            quarter = 2
+            start_month, end_month = 4, 6
+        elif 7 <= month <= 9:
+            quarter = 3
+            start_month, end_month = 7, 9
+        else:
+            quarter = 4
+            start_month, end_month = 10, 12
+        
+        # Ngày bắt đầu và kết thúc của quý
+        quarter_start = datetime(yesterday.year, start_month, 1)
+        if end_month == 12:
+            quarter_end = datetime(yesterday.year, end_month, 31)
+        else:
+            # Lấy ngày cuối cùng của tháng kết thúc
+            quarter_end = datetime(yesterday.year, end_month + 1, 1) - timedelta(days=1)
+        
+        year = quarter_start.year
+        quarter_start_str = quarter_start.strftime("%Y-%m-%d")
+        quarter_end_str = quarter_end.strftime("%Y-%m-%d")
+        print(f"Processing quarter {quarter} of {year}: {quarter_start_str} to {quarter_end_str}")
+
+        # Câu truy vấn SQL với parameterized query
+        sql_query = """
+            SELECT * FROM paper_quarter WHERE CAST(time AS TIMESTAMP) BETWEEN %s AND %s
+        """
+
+        df = pd.read_sql(sql_query, connection, params=(f"{quarter_start_str} 00:00:00", f"{quarter_end_str} 23:59:59"))
+        if df.empty:
+            print("No data for this quarter, skipping...")
+            return
+
+        df['time'] = pd.to_datetime(df['time'], format='%Y-%m-%d %H:%M:%S')
+        df['year'] = df['time'].dt.year
+        df['month'] = df['time'].dt.month
+        df['day'] = df['time'].dt.day
+        df.loc[df['keyword'].isin(['NaN', 'Null']), 'keyword'] = df['category']
+
+        # Vector hóa văn bản
+        vectorizer = CountVectorizer(max_features=2000)
+        X = vectorizer.fit_transform(df['tokens'])
+
+        # Mô hình LDA
+        num_topics = 35
+        lda = LatentDirichletAllocation(n_components=num_topics, random_state=42)
+        lda_output = lda.fit_transform(X)
+
+        # Gán chủ đề cho mỗi bài báo
+        df['Topic'] = lda_output.argmax(axis=1)
+
+        # Phân tích category và keyword
+        topic_info = analyze_category_keyword(df)
+        
+        # Tạo từ điển nhãn mới
+        topic_names_manual = {}
+        for topic_idx in topic_info.keys():
+            # Lấy thông tin category và keyword
+            top_category = topic_info[topic_idx]['top_category']
+            top_keywords = topic_info[topic_idx]['top_keywords']
+            
+            # Tạo nhãn mới dựa trên keyword
+            label = f"{'_'.join(top_keywords[:2]).lower()}"
+            
+            topic_names_manual[topic_idx] = label.replace(' ', '_')
+        
+        # Gán nhãn mới vào DataFrame
+        df['Topic_Name'] = df['Topic'].map(topic_names_manual)
+        
+        update_query = """
+            UPDATE paper_quarter
+            SET topic = %s, topic_name = %s
+            WHERE id = %s
+        """
+
+        records = list(zip(
+            df['Topic'],
+            df['Topic_Name'],
+            df['id']
+        ))
+
+        cursor.executemany(update_query, records)
+        connection.commit()
+        print("Cập nhật topic name thành công")
+
+        feature_names = vectorizer.get_feature_names_out()
+        keywords_data = {}
+        for topic_idx, topic in enumerate(lda.components_):
+            topic_name = topic_names_manual.get(topic_idx, f"topic_{topic_idx}")
+            top_category = topic_info[topic_idx]['top_category'] if topic_idx in topic_info else "Unknown"
+            top_words = [
+                {
+                    "text": feature_names[i],
+                    "value": round(topic[i] * 100 / topic.sum(), 1),
+                    "category": top_category
+                }
+                for i in topic.argsort()[:-11:-1]
+            ]
+            keywords_data[topic_name] = top_words
+            # print("topic_name:", topic_name)
+
+            # for word in top_words:
+            #     print(f'{word["text"]} - {word["category"]}: {word["value"]}')
+
+            delete_query = """
+                DELETE FROM topic_keywords_quarter 
+                WHERE year = %s AND quarter = %s
+            """
+            cursor.execute(delete_query, (year, quarter))
+
+            # Thêm từ khóa mới
+            insert_query = """
+                INSERT INTO topic_keywords_quarter (year, quarter, topic_name, keyword, value, category)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            insert_data = [
+                (year, quarter, topic_name, word["text"], word["value"], word["category"])
+                for word in top_words
+            ]
+            cursor.executemany(insert_query, insert_data)
+        
+        # Commit thay đổi
+        connection.commit()
+        print("Cập nhật keywords thành công")
+
+    except (Exception, Error) as error:
+        print("Lỗi khi lưu dữ liệu:", error)
+        if connection:
+            connection.rollback()
+    
+    finally:
+        cursor.close()
+        connection.close()
+
+
+def run_lda_model_year():
+    try:
+        print("Run LDA model for year")
+        connection = psycopg2.connect(**db_params)
+        cursor = connection.cursor()
+
+        timezone = pytz.timezone("Asia/Ho_Chi_Minh")
+        yesterday = datetime.now(timezone) - timedelta(days=1)
+        year = yesterday.year
+        formatted_date = f"{year}"
+        print(f"Processing year {year}:")
+
+        # Câu truy vấn SQL với parameterized query
+        sql_query = """
+            SELECT * FROM paper_year WHERE time LIKE %s
+        """
+
+        # Tạo pattern cho LIKE
+        date_pattern = f"{formatted_date}%"
+
+        df = pd.read_sql(sql_query, connection, params=(date_pattern,))
+        if df.empty:
+            print("No data for this year, skipping...")
+            return
+
+        df['time'] = pd.to_datetime(df['time'], format='%Y-%m-%d %H:%M:%S')
+        df['year'] = df['time'].dt.year
+        df['month'] = df['time'].dt.month
+        df['day'] = df['time'].dt.day
+        df.loc[df['keyword'].isin(['NaN', 'Null']), 'keyword'] = df['category']
+
+        # Vector hóa văn bản
+        vectorizer = CountVectorizer(max_features=2000)
+        X = vectorizer.fit_transform(df['tokens'])
+
+        # Mô hình LDA
+        num_topics = 40
+        lda = LatentDirichletAllocation(n_components=num_topics, random_state=42)
+        lda_output = lda.fit_transform(X)
+
+        # Gán chủ đề cho mỗi bài báo
+        df['Topic'] = lda_output.argmax(axis=1)
+
+        # Phân tích category và keyword
+        topic_info = analyze_category_keyword(df)
+        
+        # Tạo từ điển nhãn mới
+        topic_names_manual = {}
+        for topic_idx in topic_info.keys():
+            # Lấy thông tin category và keyword
+            top_category = topic_info[topic_idx]['top_category']
+            top_keywords = topic_info[topic_idx]['top_keywords']
+            
+            # Tạo nhãn mới dựa trên keyword
+            label = f"{'_'.join(top_keywords[:2]).lower()}"
+            
+            topic_names_manual[topic_idx] = label.replace(' ', '_')
+        
+        # Gán nhãn mới vào DataFrame
+        df['Topic_Name'] = df['Topic'].map(topic_names_manual)
+        
+        update_query = """
+            UPDATE paper_year
+            SET topic = %s, topic_name = %s
+            WHERE id = %s
+        """
+
+        records = list(zip(
+            df['Topic'],
+            df['Topic_Name'],
+            df['id']
+        ))
+
+        cursor.executemany(update_query, records)
+        connection.commit()
+        print("Cập nhật topic name thành công")
+
+        feature_names = vectorizer.get_feature_names_out()
+        keywords_data = {}
+        for topic_idx, topic in enumerate(lda.components_):
+            topic_name = topic_names_manual.get(topic_idx, f"topic_{topic_idx}")
+            top_category = topic_info[topic_idx]['top_category'] if topic_idx in topic_info else "Unknown"
+            top_words = [
+                {
+                    "text": feature_names[i],
+                    "value": round(topic[i] * 100 / topic.sum(), 1),
+                    "category": top_category
+                }
+                for i in topic.argsort()[:-11:-1]
+            ]
+            keywords_data[topic_name] = top_words
+            # print("topic_name:", topic_name)
+
+            # for word in top_words:
+            #     print(f'{word["text"]} - {word["category"]}: {word["value"]}')
+
+            delete_query = """
+                DELETE FROM topic_keywords_year 
+                WHERE year = %s
+            """
+            cursor.execute(delete_query, (year))
+
+            # Thêm từ khóa mới
+            insert_query = """
+                INSERT INTO topic_keywords_year (year, topic_name, keyword, value, category)
+                VALUES (%s, %s, %s, %s, %s)
+            """
+            insert_data = [
+                (year, topic_name, word["text"], word["value"], word["category"])
+                for word in top_words
+            ]
+            cursor.executemany(insert_query, insert_data)
+        
+        # Commit thay đổi
+        connection.commit()
+        print("Cập nhật keywords thành công")
+
+    except (Exception, Error) as error:
+        print("Lỗi khi lưu dữ liệu:", error)
+        if connection:
+            connection.rollback()
+    
+    finally:
+        cursor.close()
+        connection.close()
+
+
 if __name__ == "__main__":
     paper_dataset = ['tuoitre', 'vnexpress', 'znews']
     for paper in paper_dataset:
@@ -305,3 +729,15 @@ if __name__ == "__main__":
     
     time.sleep(5)
     run_lda_model()
+
+    timezone = pytz.timezone("Asia/Ho_Chi_Minh")
+    yesterday = datetime.now(timezone) - timedelta(days=1)
+    if yesterday.weekday() == 6:
+        time.sleep(5)
+        run_lda_model_week()
+    if (yesterday.month == 3 and yesterday.day == 31) or (yesterday.month == 6 and yesterday.day == 30) or (yesterday.month == 9 and yesterday.day == 30) or (yesterday.month == 12 and yesterday.day == 31):
+        time.sleep(5)
+        run_lda_model_quarter()
+        if yesterday.month == 12:
+            time.sleep(5)
+            run_lda_model_year()
