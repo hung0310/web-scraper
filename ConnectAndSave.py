@@ -91,21 +91,6 @@ def preprocess_and_save(csv_file_path, paper):
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
 
-        insert_query_week = """
-        INSERT INTO paper_week (source, url, category, keyword, time, title, content, tokens)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """
-
-        insert_query_quarter = """
-        INSERT INTO paper_quarter (source, url, category, keyword, time, title, content, tokens)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """
-
-        insert_query_year = """
-        INSERT INTO paper_year (source, url, category, keyword, time, title, content, tokens)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """
-
         records = list(zip(
             df['Source'],
             df['URL'],
@@ -118,12 +103,6 @@ def preprocess_and_save(csv_file_path, paper):
         ))
 
         cursor.executemany(insert_query, records)
-        time.sleep(3)
-        cursor.executemany(insert_query_week, records)
-        time.sleep(3)
-        cursor.executemany(insert_query_quarter, records)
-        time.sleep(3)
-        cursor.executemany(insert_query_year, records)
         connection.commit()
         print(f"Lưu {cursor.rowcount} bản ghi từ {csv_file_path} thành công!")
 
@@ -244,22 +223,35 @@ def run_lda_model():
         
         # Gán nhãn mới vào DataFrame
         df['Topic_Name'] = df['Topic'].map(topic_names_manual)
+
+        delete_sql = """
+            DELETE FROM topic_month WHERE paper_id = %s
+        """
+        delete_data = list(zip(df['id']))
+
+        cursor.executemany(delete_sql, delete_data)
+        connection.commit()
         
         update_query = """
-            UPDATE paper
-            SET topic = %s, topic_name = %s
-            WHERE id = %s
+            INSERT INTO topic_month (paper_id, topic_name, topic)
+            VALUES (%s, %s, %s)
         """
 
         records = list(zip(
-            df['Topic'],
+            df['id'],
             df['Topic_Name'],
-            df['id']
+            df['Topic']
         ))
 
         cursor.executemany(update_query, records)
         connection.commit()
         print("Cập nhật topic name thành công")
+
+        delete_query = """
+            DELETE FROM topic_keywords 
+            WHERE year = %s AND month = %s
+        """
+        cursor.execute(delete_query, (year, month))
 
         feature_names = vectorizer.get_feature_names_out()
         keywords_data = {}
@@ -278,12 +270,6 @@ def run_lda_model():
 
             for word in top_words:
                 print(f'{word["text"]} - {word["category"]}: {word["value"]}')
-
-            delete_query = """
-                DELETE FROM topic_keywords 
-                WHERE year = %s AND month = %s AND topic_name = %s
-            """
-            cursor.execute(delete_query, (year, month, topic_name))
 
             # Thêm từ khóa mới
             insert_query = """
@@ -336,7 +322,7 @@ def run_lda_model_week():
 
         # Câu truy vấn SQL với parameterized query
         sql_query = """
-            SELECT * FROM paper_week WHERE CAST(time AS TIMESTAMP) BETWEEN %s AND %s
+            SELECT * FROM paper WHERE CAST(time AS TIMESTAMP) BETWEEN %s AND %s
         """
 
         df = pd.read_sql(sql_query, connection, params=(f"{week_start_str} 00:00:00", f"{week_end_str} 23:59:59"))
@@ -379,22 +365,35 @@ def run_lda_model_week():
         
         # Gán nhãn mới vào DataFrame
         df['Topic_Name'] = df['Topic'].map(topic_names_manual)
+
+        delete_sql = """
+            DELETE FROM topic_week WHERE paper_id = %s
+        """
+        delete_data = list(zip(df['id']))
+
+        cursor.executemany(delete_sql, delete_data)
+        connection.commit()
         
         update_query = """
-            UPDATE paper_week
-            SET topic = %s, topic_name = %s
-            WHERE id = %s
+            INSERT INTO topic_week (paper_id, topic_name, topic)
+            VALUES (%s, %s, %s)
         """
 
         records = list(zip(
-            df['Topic'],
+            df['id'],
             df['Topic_Name'],
-            df['id']
+            df['Topic']
         ))
 
         cursor.executemany(update_query, records)
         connection.commit()
         print("Cập nhật topic name thành công")
+
+        delete_query = """
+            DELETE FROM topic_keywords_week 
+            WHERE start_date = %s AND end_date = %s
+        """
+        cursor.execute(delete_query, (week_start_str, week_end_str))
 
         feature_names = vectorizer.get_feature_names_out()
         keywords_data = {}
@@ -414,12 +413,6 @@ def run_lda_model_week():
 
             # for word in top_words:
             #     print(f'{word["text"]} - {word["category"]}: {word["value"]}')
-
-            delete_query = """
-                DELETE FROM topic_keywords_week 
-                WHERE start_date = %s AND end_date = %s
-            """
-            cursor.execute(delete_query, (week_start_str, week_end_str))
 
             # Thêm từ khóa mới
             insert_query = """
@@ -484,7 +477,7 @@ def run_lda_model_quarter():
 
         # Câu truy vấn SQL với parameterized query
         sql_query = """
-            SELECT * FROM paper_quarter WHERE CAST(time AS TIMESTAMP) BETWEEN %s AND %s
+            SELECT * FROM paper WHERE CAST(time AS TIMESTAMP) BETWEEN %s AND %s
         """
 
         df = pd.read_sql(sql_query, connection, params=(f"{quarter_start_str} 00:00:00", f"{quarter_end_str} 23:59:59"))
@@ -527,22 +520,35 @@ def run_lda_model_quarter():
         
         # Gán nhãn mới vào DataFrame
         df['Topic_Name'] = df['Topic'].map(topic_names_manual)
+
+        delete_sql = """
+            DELETE FROM topic_quarter WHERE paper_id = %s
+        """
+        delete_data = list(zip(df['id']))
+
+        cursor.executemany(delete_sql, delete_data)
+        connection.commit()
         
         update_query = """
-            UPDATE paper_quarter
-            SET topic = %s, topic_name = %s
-            WHERE id = %s
+            INSERT INTO topic_quarter (paper_id, topic_name, topic)
+            VALUES (%s, %s, %s)
         """
 
         records = list(zip(
-            df['Topic'],
+            df['id'],
             df['Topic_Name'],
-            df['id']
+            df['Topic']
         ))
 
         cursor.executemany(update_query, records)
         connection.commit()
         print("Cập nhật topic name thành công")
+
+        delete_query = """
+            DELETE FROM topic_keywords_quarter 
+            WHERE year = %s AND quarter = %s
+        """
+        cursor.execute(delete_query, (year, quarter))
 
         feature_names = vectorizer.get_feature_names_out()
         keywords_data = {}
@@ -562,12 +568,6 @@ def run_lda_model_quarter():
 
             # for word in top_words:
             #     print(f'{word["text"]} - {word["category"]}: {word["value"]}')
-
-            delete_query = """
-                DELETE FROM topic_keywords_quarter 
-                WHERE year = %s AND quarter = %s
-            """
-            cursor.execute(delete_query, (year, quarter))
 
             # Thêm từ khóa mới
             insert_query = """
@@ -608,7 +608,7 @@ def run_lda_model_year():
 
         # Câu truy vấn SQL với parameterized query
         sql_query = """
-            SELECT * FROM paper_year WHERE time LIKE %s
+            SELECT * FROM paper WHERE time LIKE %s
         """
 
         # Tạo pattern cho LIKE
@@ -654,22 +654,35 @@ def run_lda_model_year():
         
         # Gán nhãn mới vào DataFrame
         df['Topic_Name'] = df['Topic'].map(topic_names_manual)
+
+        delete_sql = """
+            DELETE FROM topic_year WHERE paper_id = %s
+        """
+        delete_data = list(zip(df['id']))
+
+        cursor.executemany(delete_sql, delete_data)
+        connection.commit()
         
         update_query = """
-            UPDATE paper_year
-            SET topic = %s, topic_name = %s
-            WHERE id = %s
+            INSERT INTO topic_year (paper_id, topic_name, topic)
+            VALUES (%s, %s, %s)
         """
 
         records = list(zip(
-            df['Topic'],
+            df['id'],
             df['Topic_Name'],
-            df['id']
+            df['Topic']
         ))
 
         cursor.executemany(update_query, records)
         connection.commit()
         print("Cập nhật topic name thành công")
+
+        delete_query = """
+            DELETE FROM topic_keywords_year 
+            WHERE year = %s
+        """
+        cursor.execute(delete_query, (year,))
 
         feature_names = vectorizer.get_feature_names_out()
         keywords_data = {}
@@ -689,12 +702,6 @@ def run_lda_model_year():
 
             # for word in top_words:
             #     print(f'{word["text"]} - {word["category"]}: {word["value"]}')
-
-            delete_query = """
-                DELETE FROM topic_keywords_year 
-                WHERE year = %s
-            """
-            cursor.execute(delete_query, (year))
 
             # Thêm từ khóa mới
             insert_query = """
