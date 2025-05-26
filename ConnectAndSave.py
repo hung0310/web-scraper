@@ -420,7 +420,7 @@ def run_lda_model_week():
                 VALUES (%s, %s, %s, %s, %s, %s)
             """
             insert_data = [
-                (week_start_str, week_end_str, topic_name, word["text"], word["value"], word["category"])
+                (week_start_str, week_end_str, topic_name, word["text"], float(word["value"]), word["category"])
                 for word in top_words
             ]
             cursor.executemany(insert_query, insert_data)
@@ -575,7 +575,7 @@ def run_lda_model_quarter():
                 VALUES (%s, %s, %s, %s, %s, %s)
             """
             insert_data = [
-                (year, quarter, topic_name, word["text"], word["value"], word["category"])
+                (year, quarter, topic_name, word["text"], float(word["value"]), word["category"])
                 for word in top_words
             ]
             cursor.executemany(insert_query, insert_data)
@@ -709,7 +709,7 @@ def run_lda_model_year():
                 VALUES (%s, %s, %s, %s, %s)
             """
             insert_data = [
-                (year, topic_name, word["text"], word["value"], word["category"])
+                (year, topic_name, word["text"], float(word["value"]), word["category"])
                 for word in top_words
             ]
             cursor.executemany(insert_query, insert_data)
