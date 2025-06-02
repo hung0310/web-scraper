@@ -145,6 +145,8 @@ def analyze_category_keyword(df):
         # Loại bỏ từ khóa trùng với top_category
         top_category_lower = top_category.lower()
         filtered_keywords = [kw for kw in top_keywords if kw.lower() != top_category_lower]
+        filtered_keywords = [kw for kw in filtered_keywords if kw.lower() != 'null']
+        filtered_keywords = [kw for kw in filtered_keywords if kw.lower() != 'nan']
         
         topic_info[topic_idx] = {
             'top_category': top_category,
@@ -164,6 +166,7 @@ def run_lda_model():
         # formatted_date = yesterday.strftime("%Y-%m-%d")  # Định dạng thành 'YYYY-MM-DD'
         month = yesterday.month
         year = yesterday.year
+        day = yesterday.day
         formatted_date = f"{year}-{month:02d}"  # Định dạng thành 'YYYY-MM'
         print(formatted_date)
 
@@ -185,7 +188,7 @@ def run_lda_model():
         df['year'] = df['time'].dt.year
         df['month'] = df['time'].dt.month
         df['day'] = df['time'].dt.day
-        df.loc[df['keyword'].isin(['NaN', 'Null']), 'keyword'] = df['category']
+        # df.loc[df['keyword'].isin(['NaN', 'Null']), 'keyword'] = df['category']
 
         data_hash = get_data_hash(df)
         hash_key = f"hash_{year}_{month}"
@@ -195,7 +198,12 @@ def run_lda_model():
         X = vectorizer.fit_transform(df['tokens'])
 
         # Mô hình LDA
-        num_topics = 20
+        if day <= 5:
+            num_topics = 10
+        elif 5 < day <= 15:
+            num_topics = 15
+        else:
+            num_topics = 20
         lda = LatentDirichletAllocation(n_components=num_topics, random_state=42)
         lda_output = lda.fit_transform(X)
 
@@ -334,7 +342,7 @@ def run_lda_model_week():
         df['year'] = df['time'].dt.year
         df['month'] = df['time'].dt.month
         df['day'] = df['time'].dt.day
-        df.loc[df['keyword'].isin(['NaN', 'Null']), 'keyword'] = df['category']
+        # df.loc[df['keyword'].isin(['NaN', 'Null']), 'keyword'] = df['category']
 
         # Vector hóa văn bản
         vectorizer = CountVectorizer(max_features=2000)
@@ -489,7 +497,7 @@ def run_lda_model_quarter():
         df['year'] = df['time'].dt.year
         df['month'] = df['time'].dt.month
         df['day'] = df['time'].dt.day
-        df.loc[df['keyword'].isin(['NaN', 'Null']), 'keyword'] = df['category']
+        # df.loc[df['keyword'].isin(['NaN', 'Null']), 'keyword'] = df['category']
 
         # Vector hóa văn bản
         vectorizer = CountVectorizer(max_features=2000)
@@ -623,7 +631,7 @@ def run_lda_model_year():
         df['year'] = df['time'].dt.year
         df['month'] = df['time'].dt.month
         df['day'] = df['time'].dt.day
-        df.loc[df['keyword'].isin(['NaN', 'Null']), 'keyword'] = df['category']
+        # df.loc[df['keyword'].isin(['NaN', 'Null']), 'keyword'] = df['category']
 
         # Vector hóa văn bản
         vectorizer = CountVectorizer(max_features=2000)
