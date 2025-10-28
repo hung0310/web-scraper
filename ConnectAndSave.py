@@ -742,17 +742,17 @@ if __name__ == "__main__":
         csv_file_path = f"dataset_paper_{paper}.csv"
         preprocess_and_save(csv_file_path, paper)
     
-    time.sleep(5)
-    run_lda_model()
+    # time.sleep(5)
+    # run_lda_model()
 
-    timezone = pytz.timezone("Asia/Ho_Chi_Minh")
-    yesterday = datetime.now(timezone) - timedelta(days=1)
-    if yesterday.weekday() == 6:
-        time.sleep(5)
-        run_lda_model_week()
-    if (yesterday.month == 3 and yesterday.day == 31) or (yesterday.month == 6 and yesterday.day == 30) or (yesterday.month == 9 and yesterday.day == 30) or (yesterday.month == 12 and yesterday.day == 31):
-        time.sleep(5)
-        run_lda_model_quarter()
-        if yesterday.month == 12:
-            time.sleep(5)
-            run_lda_model_year()
+    # timezone = pytz.timezone("Asia/Ho_Chi_Minh")
+    # yesterday = datetime.now(timezone) - timedelta(days=1)
+    # if yesterday.weekday() == 6:
+    #     time.sleep(5)
+    #     run_lda_model_week()
+    # if (yesterday.month == 3 and yesterday.day == 31) or (yesterday.month == 6 and yesterday.day == 30) or (yesterday.month == 9 and yesterday.day == 30) or (yesterday.month == 12 and yesterday.day == 31):
+    #     time.sleep(5)
+    #     run_lda_model_quarter()
+    #     if yesterday.month == 12:
+    #         time.sleep(5)
+    #         run_lda_model_year()
