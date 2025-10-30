@@ -55,7 +55,8 @@ def preprocess_and_save(csv_file_path, paper):
         df['Time'] = df['Time'].str.replace(r',\s*(?=\d{1,2}:\d{2}\s*\(GMT\+7\))', ' ', regex=True)
         df['Time'] = df['Time'].str.replace(r'\s*\(GMT\+7\)', '', regex=True)
         # Chuẩn hóa ngày: 13/4/2025 -> 13/04/2025
-        df['Time'] = df['Time'].str.replace(r'(\d+)/(\d+)/(\d+)', r'\1/0\2/\3', regex=True)
+        df['Time'] = df['Time'].str.replace(r'(?<=\b)(\d{1})(?=/)(?=\d{1,2}/\d{4}\b)', r'0\1', regex=True)
+        df['Time'] = df['Time'].str.replace(r'(?<=/)(\d{1})(?=/\d{4}\b)', r'0\1', regex=True)
         df['Time'] = pd.to_datetime(df['Time'], format='%d/%m/%Y %H:%M', errors='coerce')
     
     invalid_rows = df['Time'].isna().sum()
