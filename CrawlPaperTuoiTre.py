@@ -2,6 +2,7 @@ import os
 import time
 import csv
 import random
+import re
 from datetime import datetime, timedelta
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -13,17 +14,21 @@ from bs4 import BeautifulSoup
 import pytz
 
 vn_timezone = pytz.timezone('Asia/Ho_Chi_Minh')
-yesterday = datetime.now(vn_timezone) - timedelta(days=1)
+current_time = datetime.now(vn_timezone)
+
+# Xác định khung giờ cố định dựa trên giờ hiện tại
+# Chia ngày thành các khung 3 tiếng: 0-2, 3-5, 6-8, 9-11, 12-14, 15-17, 18-20, 21-23
+current_hour = current_time.hour
+time_slot_start_hour = (current_hour // 3) * 3  # Làm tròn xuống bội số của 3
+
+# Tạo khung giờ: từ X:00:00 đến X+2:59:59
+time_start = current_time.replace(hour=time_slot_start_hour, minute=0, second=0, microsecond=0)
+time_end = time_start.replace(hour=time_slot_start_hour + 2, minute=59, second=59, microsecond=999999)
+
+print(f"Khung giờ crawl: {time_start.strftime('%Y-%m-%d %H:%M:%S')} đến {time_end.strftime('%Y-%m-%d %H:%M:%S')}")
+
 csv_file = 'dataset_paper_tuoitre.csv'
 base_url = 'https://tuoitre.vn'
-
-# 🔹 Xóa nội dung file CSV nhưng giữ lại tiêu đề
-# if os.path.exists(csv_file):
-#     with open(csv_file, "w", encoding="utf-8", newline="") as file:
-#         writer = csv.writer(file)
-#         writer.writerow(["Source", "URL", "Category", "Keyword", "Time", "Title", "Content"])  # Ghi header lại
-# else:
-#     print(f"File {csv_file} chưa tồn tại, sẽ tạo mới khi ghi dữ liệu.")
 
 # 🛠 Hàm khởi tạo driver
 def init_driver():
@@ -61,6 +66,36 @@ def load_crawled_urls(csv_file):
         pass
     return crawled_urls
 
+# 🛠 Hàm parse thời gian từ text Tuổi Trẻ
+def parse_tuoitre_time(time_text):
+    """
+    Parse thời gian từ Tuổi Trẻ format:
+    - "23/11/2024 02:30 GMT+7"
+    - "Thứ bảy, 23/11/2024 02:30 GMT+7"
+    """
+    try:
+        time_text = time_text.strip()
+        
+        # Format: "23/11/2024 02:30 GMT+7" hoặc "Thứ bảy, 23/11/2024 02:30 GMT+7"
+        match = re.search(r'(\d{1,2})/(\d{1,2})/(\d{4})\s+(\d{1,2}):(\d{2})', time_text)
+        if match:
+            day, month, year, hour, minute = match.groups()
+            return datetime(int(year), int(month), int(day), int(hour), int(minute), tzinfo=vn_timezone)
+        
+        print(f"Không parse được thời gian: {time_text}")
+        return None
+        
+    except Exception as e:
+        print(f"Lỗi khi parse thời gian '{time_text}': {e}")
+        return None
+
+# 🛠 Hàm kiểm tra bài viết có trong khung giờ không
+def is_in_time_range(article_time):
+    """Kiểm tra xem thời gian bài viết có nằm trong khung giờ [time_start, time_end] không"""
+    if not article_time:
+        return False
+    return time_start <= article_time <= time_end
+
 # 🛠 Hàm crawl bài báo
 def crawl_article(driver, category_name, article_href, writer, crawled_urls):
     if article_href in crawled_urls:
@@ -76,6 +111,12 @@ def crawl_article(driver, category_name, article_href, writer, crawled_urls):
             time_elem = soup.select_one('div.detail-time > div')
             time_paper = time_elem.get_text(strip=True) if time_elem else "N/A"
 
+            # Kiểm tra thời gian bài viết
+            article_time = parse_tuoitre_time(time_paper)
+            if not is_in_time_range(article_time):
+                print(f"Bài viết {article_href} không trong khung giờ, bỏ qua.")
+                return True  # Return True để không retry
+
             title_elem = soup.select_one('h1.detail-title')
             title_paper = title_elem.get_text(strip=True) if title_elem else "Không có tiêu đề"
 
@@ -87,6 +128,7 @@ def crawl_article(driver, category_name, article_href, writer, crawled_urls):
 
             writer.writerow(["Tuoi tre", article_href, category_name, keyword_paper, time_paper, title_paper, content_paper])
             crawled_urls.add(article_href)
+            print(f"Đã crawl bài {article_href} - Thời gian: {time_paper}")
             return True
         except TimeoutException:
             print(f"Timeout khi tải {article_href}, thử lại {attempt+1}/3")
@@ -100,19 +142,25 @@ def crawl_article(driver, category_name, article_href, writer, crawled_urls):
 driver = init_driver()
 crawled_urls = load_crawled_urls(csv_file)
 
+# Mở file ở chế độ append để không mất dữ liệu cũ
+file_mode = 'a' if crawled_urls else 'w'
+write_header = not crawled_urls
+
 try:
     driver.get(base_url)
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     categories = soup.select('ul.menu-nav > li > a')
 
-    with open(csv_file, mode='w', encoding='utf-8-sig', newline='') as file:
+    with open(csv_file, mode=file_mode, encoding='utf-8-sig', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow(["Source", "URL", "Category", "Keyword", "Time", "Title", "Content"])
+        if write_header:
+            writer.writerow(["Source", "URL", "Category", "Keyword", "Time", "Title", "Content"])
         
         for cat in categories:
             category_url = f"{base_url}{cat['href']}"
             category_name = cat.get_text(strip=True)
 
+            print(f"Đang xử lý danh mục: {category_name}")
             driver.get(category_url)
             time.sleep(2)
 
@@ -130,11 +178,11 @@ try:
 
                     try:
                         article_date = datetime.strptime(date_str, "%Y%m%d").date()
-                        if article_date == yesterday.date():
+                        
+                        # Chỉ lấy bài trong ngày hiện tại
+                        if article_date == current_time.date():
                             article_hrefs.add(article_href)
-                        elif article_date == datetime.now().date():
-                            continue
-                        elif article_date < yesterday.date():
+                        elif article_date < current_time.date():
                             print(f"Dừng scroll trong {category_name}, phát hiện bài cũ.")
                             stop_scroll = True
                             break
@@ -149,16 +197,18 @@ try:
                     break
                 last_height = new_height
 
-            print(f"🔹 Tìm thấy {len(article_hrefs)} bài trong {category_name}")
+            print(f"Tìm thấy {len(article_hrefs)} bài trong {category_name}")
 
             for article_href in article_hrefs:
                 if not crawl_article(driver, category_name, article_href, writer, crawled_urls):
-                    print("❌ Khởi động lại driver do lỗi nghiêm trọng.")
+                    print("Khởi động lại driver do lỗi nghiêm trọng.")
                     driver.quit()
                     driver = init_driver()
                     continue
 
 except Exception as e:
-    print(f"⚠️ Lỗi chính: {e}")
+    print(f"Lỗi chính: {e}")
 finally:
     driver.quit()
+
+print("Hoàn tất quá trình thu thập dữ liệu.")

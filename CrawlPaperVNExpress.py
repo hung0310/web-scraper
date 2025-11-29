@@ -9,18 +9,25 @@ from bs4 import BeautifulSoup
 import time
 import csv
 import random
-import logging
 import pytz
-
-# Cấu hình logging
-logging.basicConfig(level=logging.INFO, filename='vnexpress_crawler.log', 
-                   format='%(asctime)s - %(levelname)s - %(message)s')
+import re
 
 base_url = 'https://vnexpress.net'
 csv_file = 'dataset_paper_vnexpress.csv'
 
 vn_timezone = pytz.timezone('Asia/Ho_Chi_Minh')
-yesterday = datetime.now(vn_timezone) - timedelta(days=1)
+current_time = datetime.now(vn_timezone)
+
+# Xác định khung giờ cố định dựa trên giờ hiện tại
+# Chia ngày thành các khung 3 tiếng: 0-2, 3-5, 6-8, 9-11, 12-14, 15-17, 18-20, 21-23
+current_hour = current_time.hour
+time_slot_start_hour = (current_hour // 3) * 3  # Làm tròn xuống bội số của 3
+
+# Tạo khung giờ: từ X:00:00 đến X+2:59:59
+time_start = current_time.replace(hour=time_slot_start_hour, minute=0, second=0, microsecond=0)
+time_end = time_start.replace(hour=time_slot_start_hour + 2, minute=59, second=59, microsecond=999999)
+
+print(f"Khung giờ crawl: {time_start.strftime('%Y-%m-%d %H:%M:%S')} đến {time_end.strftime('%Y-%m-%d %H:%M:%S')}")
 
 # 🛠 Hàm khởi tạo driver
 def init_driver():
@@ -58,27 +65,62 @@ def load_crawled_urls(csv_file):
         pass
     return crawled_urls
 
-def _extract_date_from_url(srcset):
+# 🛠 Hàm parse thời gian từ text VNExpress
+def parse_vnexpress_time(time_text):
+    """
+    Parse thời gian từ VNExpress format:
+    - "Thứ bảy, 23/11/2024, 02:30 (GMT+7)"
+    - "Hôm qua, 02:30"
+    - "2 giờ trước"
+    - "30 phút trước"
+    """
     try:
-        url = srcset.split(',')[0].strip().split(' ')[0]
-        parts = url.split('/')
-        for i in range(len(parts) - 2):
-            if (i+2 < len(parts) and
-                parts[i].isdigit() and len(parts[i]) == 4 and
-                parts[i+1].isdigit() and len(parts[i+1]) == 2 and
-                parts[i+2].isdigit() and len(parts[i+2]) == 2):
-                date_str = f"{parts[i]}/{parts[i+1]}/{parts[i+2]}"
-                return datetime.strptime(date_str, '%Y/%m/%d').date()
-        logging.warning(f"Không tìm thấy định dạng ngày trong: {srcset}")
+        time_text = time_text.strip()
+        
+        # Format đầy đủ: "Thứ bảy, 23/11/2024, 02:30 (GMT+7)"
+        match = re.search(r'(\d{1,2})/(\d{1,2})/(\d{4}),?\s*(\d{1,2}):(\d{2})', time_text)
+        if match:
+            day, month, year, hour, minute = match.groups()
+            return datetime(int(year), int(month), int(day), int(hour), int(minute), tzinfo=vn_timezone)
+        
+        # "Hôm qua, HH:MM"
+        if "Hôm qua" in time_text or "hôm qua" in time_text:
+            match = re.search(r'(\d{1,2}):(\d{2})', time_text)
+            if match:
+                hour, minute = match.groups()
+                yesterday = current_time - timedelta(days=1)
+                return yesterday.replace(hour=int(hour), minute=int(minute), second=0, microsecond=0)
+        
+        # "X giờ trước"
+        match = re.search(r'(\d+)\s*giờ trước', time_text)
+        if match:
+            hours_ago = int(match.group(1))
+            return current_time - timedelta(hours=hours_ago)
+        
+        # "X phút trước"
+        match = re.search(r'(\d+)\s*phút trước', time_text)
+        if match:
+            minutes_ago = int(match.group(1))
+            return current_time - timedelta(minutes=minutes_ago)
+        
+        print(f"Không parse được thời gian: {time_text}")
         return None
+        
     except Exception as e:
-        logging.error(f"Lỗi khi trích xuất ngày từ srcset: {e}")
+        print(f"Lỗi khi parse thời gian '{time_text}': {e}")
         return None
+
+# 🛠 Hàm kiểm tra bài viết có trong khung giờ không
+def is_in_time_range(article_time):
+    """Kiểm tra xem thời gian bài viết có nằm trong khung giờ [time_start, time_end] không"""
+    if not article_time:
+        return False
+    return time_start <= article_time <= time_end
 
 # 🛠 Hàm crawl bài báo
 def crawl_article(driver, article_url, category_name, writer, crawled_urls):
     if article_url in crawled_urls:
-        logging.info(f"Bài {article_url} đã được crawl, bỏ qua.")
+        print(f"Bài {article_url} đã được crawl, bỏ qua.")
         return True
 
     for attempt in range(3):
@@ -104,22 +146,28 @@ def crawl_article(driver, article_url, category_name, writer, crawled_urls):
             full_content = f"{para_head_text} {para_main_text}".strip()
 
             if not full_content:
-                logging.warning(f"Không tìm thấy nội dung cho bài viết: {article_url}")
+                print(f"Không tìm thấy nội dung cho bài viết: {article_url}")
                 return False
+
+            # Kiểm tra thời gian bài viết
+            article_time = parse_vnexpress_time(time_text)
+            if not is_in_time_range(article_time):
+                print(f"Bài viết {article_url} không trong khung giờ, bỏ qua.")
+                return True  # Return True để không retry
 
             writer.writerow(["VN Express", article_url, category_name, keyword_paper, time_text, title_text, full_content])
             crawled_urls.add(article_url)
-            logging.info(f"Đã crawl bài {article_url}")
+            print(f"Đã crawl bài {article_url} - Thời gian: {time_text}")
             return True
             
         except TimeoutException:
-            logging.warning(f"Timeout khi tải {article_url}, thử lại {attempt+1}/3")
+            print(f"Timeout khi tải {article_url}, thử lại {attempt+1}/3")
             time.sleep(random.uniform(2, 5))
         except (NoSuchElementException, StaleElementReferenceException) as e:
-            logging.error(f"Lỗi phần tử khi tải {article_url}: {e}")
+            print(f"Lỗi phần tử khi tải {article_url}: {e}")
             return False
         except Exception as e:
-            logging.error(f"Lỗi không xác định khi tải {article_url}: {e}")
+            print(f"Lỗi không xác định khi tải {article_url}: {e}")
             return False
     return False
 
@@ -136,9 +184,14 @@ try:
     soup_categories_paper = BeautifulSoup(driver.page_source, 'html.parser')
     soup_categories = soup_categories_paper.select('ul.parent > li')
 
-    with open(csv_file, mode='w', encoding='utf-8-sig', newline='') as file:
+    # Mở file ở chế độ append để không mất dữ liệu cũ
+    file_mode = 'a' if crawled_urls else 'w'
+    write_header = not crawled_urls
+    
+    with open(csv_file, mode=file_mode, encoding='utf-8-sig', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow(["Source", "URL", "Category", "Keyword", "Time", "Title", "Content"])
+        if write_header:
+            writer.writerow(["Source", "URL", "Category", "Keyword", "Time", "Title", "Content"])
         
         if soup_categories:
             for li in soup_categories:
@@ -159,7 +212,7 @@ try:
                             href_a_sub_li = base_url + href_a_sub_li
 
                         try:
-                            logging.info(f"Đang truy cập danh mục: {name_category} ({href_a_sub_li})")
+                            print(f"Đang truy cập danh mục: {name_category} ({href_a_sub_li})")
                             driver.get(href_a_sub_li)
                             wait_for_element(driver, By.CSS_SELECTOR, 'div.list-news-subfolder > article.item-news, article.item-news', timeout=10)
                             
@@ -170,13 +223,13 @@ try:
                             page_numbers = [int(link.text) for link in pagination_links if link.text.isdigit()]
                             last_page = max(page_numbers) if page_numbers else 1
 
-                            logging.info(f"Tìm thấy {last_page} trang cho danh mục: {name_category}")
+                            print(f"Tìm thấy {last_page} trang cho danh mục: {name_category}")
 
                             for page in range(1, last_page + 1):
                                 stop_category = False
                                 try:
                                     page_url = f'{href_a_sub_li}-p{page}' if page > 1 else href_a_sub_li
-                                    logging.info(f"Đang xử lý trang {page}/{last_page}: {page_url}")
+                                    print(f"Đang xử lý trang {page}/{last_page}: {page_url}")
                                     
                                     driver.get(page_url)
                                     wait_for_element(driver, By.CSS_SELECTOR, 'div.list-news-subfolder > article.item-news, article.item-news', timeout=10)
@@ -185,30 +238,12 @@ try:
                                     data_paper = soup_data_paper.select('div.list-news-subfolder > article.item-news, article.item-news')
 
                                     if not data_paper:
-                                        logging.warning(f"Không tìm thấy bài viết nào trong trang {page}")
+                                        print(f"Không tìm thấy bài viết nào trong trang {page}")
                                         continue
 
                                     # Thu thập danh sách URL từ trang hiện tại
                                     article_urls = []
                                     for data in data_paper:
-                                        srcset_elem = data.select_one('div.thumb-art > a > picture > source, source')
-                                        if not srcset_elem or not srcset_elem.get('srcset'):
-                                            continue
-
-                                        article_date = _extract_date_from_url(srcset_elem['srcset'])
-                                        if not article_date:
-                                            continue
-                                            
-                                        logging.info(f"Ngày bài viết: {article_date}, Ngày hôm qua: {yesterday.date()}")
-                                        
-                                        if article_date < yesterday.date():
-                                            logging.info(f"Bài viết cũ hơn ngày hôm qua, dừng danh mục này.")
-                                            stop_category = True
-                                            break
-                                        elif article_date > yesterday.date():
-                                            logging.info(f"Bài viết mới hơn ngày hôm qua, bỏ qua.")
-                                            continue
-                                        
                                         href_article = data.select_one('h2.title-news > a, h3.title-news > a, a.title-news')
                                         if href_article:
                                             href_article_data = href_article.get("href", "")
@@ -225,13 +260,13 @@ try:
                                     for article_url in article_urls:
                                         # Kiểm tra và khởi động lại driver nếu cần
                                         if article_count >= max_articles_before_restart:
-                                            logging.info("Khởi động lại driver để làm mới tài nguyên.")
+                                            print("Khởi động lại driver để làm mới tài nguyên.")
                                             driver.quit()
                                             driver = init_driver()
                                             article_count = 0
                                         
                                         if not crawl_article(driver, article_url, name_category, writer, crawled_urls):
-                                            logging.warning("Khởi động lại driver do lỗi nghiêm trọng.")
+                                            print("Khởi động lại driver do lỗi nghiêm trọng.")
                                             driver.quit()
                                             driver = init_driver()
                                             continue
@@ -243,29 +278,29 @@ try:
                                         time.sleep(sleep_time)
 
                                     if stop_category:
-                                        logging.info(f"Dừng tại trang {page} của danh mục {name_category}")
+                                        print(f"Dừng tại trang {page} của danh mục {name_category}")
                                         break
                                     
                                     # Nghỉ giữa các trang
                                     sleep_time = random.uniform(2, 4)
-                                    logging.info(f"Nghỉ {sleep_time:.2f} giây trước khi tiếp tục...")
+                                    print(f"Nghỉ {sleep_time:.2f} giây trước khi tiếp tục...")
                                     time.sleep(sleep_time)
 
                                 except Exception as e:
-                                    logging.error(f"Lỗi khi tải trang {page_url}: {e}")
+                                    print(f"Lỗi khi tải trang {page_url}: {e}")
                                     continue
 
                         except Exception as e:
-                            logging.error(f"Lỗi khi lấy danh mục {href_a_sub_li}: {e}")
+                            print(f"Lỗi khi lấy danh mục {href_a_sub_li}: {e}")
                             continue
 
         else:
-            logging.warning('Không tìm thấy menu')
+            print('Không tìm thấy menu')
 
 except Exception as e:
-    logging.error(f"Lỗi chính: {e}")
+    print(f"Lỗi chính: {e}")
 
 finally:
     driver.quit()
 
-logging.info("Hoàn tất quá trình thu thập dữ liệu.")
+print("Hoàn tất quá trình thu thập dữ liệu.")

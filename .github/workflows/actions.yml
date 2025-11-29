@@ -2,7 +2,14 @@ name: Crawl News
 
 on:
   schedule:
-    - cron: '0 19 * * *'  # 2 giờ sáng Việt Nam (tương đương 19:00 UTC)
+    - cron: '0 17 * * *'  # 0h sáng Việt Nam (UTC+7)
+    - cron: '0 20 * * *'  # 3h sáng Việt Nam
+    - cron: '0 23 * * *'  # 6h sáng Việt Nam
+    - cron: '0 2 * * *'   # 9h sáng Việt Nam
+    - cron: '0 5 * * *'   # 12h trưa Việt Nam
+    - cron: '0 8 * * *'   # 15h chiều Việt Nam
+    - cron: '0 11 * * *'  # 18h tối Việt Nam
+    - cron: '0 14 * * *'  # 21h tối Việt Nam
   workflow_dispatch:
 
 jobs:
@@ -18,7 +25,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.12'  # Sử dụng Python 3.12
+          python-version: '3.12'
 
       # 3. Cài đặt PostgreSQL dependencies (nếu dùng psycopg2)
       - name: Install PostgreSQL dependencies
@@ -50,18 +57,34 @@ jobs:
           DB_HOST: ${{ secrets.DB_HOST }}
           DB_PORT: ${{ secrets.DB_PORT }}
 
-      # 9. Commit kết quả (nếu có thay đổi)
+      # 9. Tạo Summary cho tất cả các file
+      - name: Generate Summary CSV
+        run: python SummaryPaper.py
+
+      # 10. Tiền xử lý & extract entities
+      - name: Preprocessing & Extract Entities
+        run: python preprocessing_extract_entity.py
+
+      # 11. Tạo Knowledge Graph
+      - name: Create Knowledge Graph
+        run: python create_KG.py
+
+      # 12. Trích xuất quan hệ
+      - name: Relation Extraction
+        run: python relation_extraction.py
+
+      # 13. Commit kết quả (nếu có thay đổi)
       - name: Commit Results
         run: |
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
-          git add dataset_paper_tuoitre.csv dataset_paper_vnexpress.csv dataset_paper_znews.csv
+          git add dataset_paper_tuoitre.csv dataset_paper_vnexpress.csv dataset_paper_znews.csv summary_paper.csv extracted_entities.csv extracted_entities.csv checkpoint.json relations.csv
           git commit -m "Update crawled data - $(date)" || echo "No changes to commit"
           git push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 10. Gửi email thông báo hoàn tất
+      # 14. Gửi email thông báo hoàn tất
       - name: Send Email
         uses: dawidd6/action-send-mail@v3
         with:
@@ -69,7 +92,7 @@ jobs:
           server_port: 465
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
-          subject: 'Crawl paper - Completed ✅'
-          body: 'Crawl completed successfully. Check the updated datasets in the repository.'
+          subject: 'Test new task - crawl and neo4j - Completed ✅'
+          body: 'Crawl completed successfully. Check the updated datasets and KG in the repository.'
           to: nth0326zz@gmail.com
           from: 'Crawl Paper Bot'
