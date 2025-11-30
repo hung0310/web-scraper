@@ -29,7 +29,7 @@ def normalize_time(text):
 
 files = {
     "tuoitre": "dataset_paper_tuoitre.csv",
-    "vnexpress": "dataset_paper_vnexpress.csv",
+    # "vnexpress": "dataset_paper_vnexpress.csv",
     "znews": "dataset_paper_znews.csv"
 }
 
