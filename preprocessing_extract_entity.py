@@ -2,16 +2,23 @@ import pandas as pd
 from underthesea import sent_tokenize, ner
 from tqdm import tqdm
 
+# Đọc file CSV
 df = pd.read_csv('summary_paper.csv')
+
+# ============================================
+# CHUẨN HÓA TÊN CỘT - Chuyển tất cả về lowercase
+# ============================================
+df.columns = df.columns.str.lower()
+print("✓ Các cột sau khi chuẩn hóa:", df.columns.tolist())
 
 # Làm sạch text
 def clean_text(text):
     if pd.isna(text):
         return ""
-    text = text.replace("\n", " ").strip()
+    text = str(text).replace("\n", " ").strip()
     return text
 
-# Áp dụng cho title + content
+# Áp dụng cho title + content (giờ dùng lowercase)
 df["content_clean"] = df["content"].apply(clean_text)
 df["title_clean"] = df["title"].apply(clean_text)
 
@@ -37,7 +44,7 @@ def extract_entities_from_sentences(sentences):
 def process_all(df, output_csv):
     all_entities = []
 
-    for _, row in tqdm(df.iterrows(), total=len(df)):
+    for _, row in tqdm(df.iterrows(), total=len(df), desc="Extracting entities"):
         entities = extract_entities_from_sentences(row["sentences"])
         for e in entities:
             all_entities.append({
@@ -50,8 +57,9 @@ def process_all(df, output_csv):
                 "date": row["time"]
             })
 
-    pd.DataFrame(all_entities).to_csv(output_csv, index=False)
-    print("✔ Done! Saved to:", output_csv)
+    result_df = pd.DataFrame(all_entities)
+    result_df.to_csv(output_csv, index=False)
+    print(f"✔ Done! Saved {len(result_df)} entities to: {output_csv}")
 
 
 # Chạy xử lý toàn bộ file
