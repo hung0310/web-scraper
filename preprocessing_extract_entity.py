@@ -41,7 +41,8 @@ df["sentences"] = df["content_clean"].apply(lambda x: sent_tokenize(x))
 def extract_entities_from_sentences(sentences):
     entities = []
     for s in sentences:
-        for word, tag in ner(s):
+        for item in ner(s):
+            word, tag = item[0], item[1]
             if tag != "O":
                 entities.append({
                     "entity": word,
