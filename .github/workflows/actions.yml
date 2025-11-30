@@ -2,14 +2,14 @@ name: Crawl News
 
 on:
   schedule:
-    - cron: '0 17 * * *'  # 0h sáng Việt Nam (UTC+7)
-    - cron: '0 20 * * *'  # 3h sáng Việt Nam
-    - cron: '0 23 * * *'  # 6h sáng Việt Nam
-    - cron: '0 2 * * *'   # 9h sáng Việt Nam
-    - cron: '0 5 * * *'   # 12h trưa Việt Nam
-    - cron: '0 8 * * *'   # 15h chiều Việt Nam
-    - cron: '0 11 * * *'  # 18h tối Việt Nam
-    - cron: '0 14 * * *'  # 21h tối Việt Nam
+    - cron: "0 17 * * *" # 0h sáng Việt Nam (UTC+7)
+    - cron: "0 20 * * *" # 3h sáng Việt Nam
+    - cron: "0 23 * * *" # 6h sáng Việt Nam
+    - cron: "0 2 * * *" # 9h sáng Việt Nam
+    - cron: "0 5 * * *" # 12h trưa Việt Nam
+    - cron: "0 8 * * *" # 15h chiều Việt Nam
+    - cron: "0 11 * * *" # 18h tối Việt Nam
+    - cron: "0 14 * * *" # 21h tối Việt Nam
   workflow_dispatch:
 
 jobs:
@@ -25,7 +25,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       # 3. Cài đặt PostgreSQL dependencies (nếu dùng psycopg2)
       - name: Install PostgreSQL dependencies
@@ -39,9 +39,9 @@ jobs:
       - name: Crawl Tuoi Tre
         run: python CrawlPaperTuoiTre.py
 
-      # 6. Crawl từ VNExpress
-      - name: Crawl VNExpress
-        run: python CrawlPaperVNExpress.py
+      # # 6. Crawl từ VNExpress
+      # - name: Crawl VNExpress
+      #   run: python CrawlPaperVNExpress.py
 
       # 7. Crawl từ ZNews
       - name: Crawl ZNews
@@ -92,7 +92,7 @@ jobs:
           server_port: 465
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
-          subject: 'Test new task - crawl and neo4j - Completed ✅'
-          body: 'Crawl completed successfully. Check the updated datasets and KG in the repository.'
+          subject: "Test new task - crawl and neo4j - Completed ✅"
+          body: "Crawl completed successfully. Check the updated datasets and KG in the repository."
           to: nth0326zz@gmail.com
-          from: 'Crawl Paper Bot'
+          from: "Crawl Paper Bot"
