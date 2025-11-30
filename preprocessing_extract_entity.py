@@ -1,9 +1,20 @@
 import pandas as pd
+import uuid
 from underthesea import sent_tokenize, ner
 from tqdm import tqdm
 
 # Đọc file CSV
 df = pd.read_csv('summary_paper.csv')
+
+# ============================================
+# CHECK & ADD ID IF MISSING
+# ============================================
+if "id" not in df.columns:
+    df["id"] = [str(uuid.uuid4()) for _ in range(len(df))]
+    print("✔ Added 'id' column using UUID4")
+
+else:
+    print("✔ 'id' column exists — using existing IDs")
 
 # ============================================
 # CHUẨN HÓA TÊN CỘT - Chuyển tất cả về lowercase
