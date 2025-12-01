@@ -71,74 +71,77 @@ checkpoint_file = Path("checkpoint.json")
 start_chunk_default = 1
 
 # Ghi vào Neo4j
-with driver.session() as session:
-    for csv_path in csv_paths:
-        # Chỉ sửa: resume_chunk tăng 1 để resume đúng
-        try:
-            resume_chunk = get_checkpoint(checkpoint_file).get(csv_path.name, 0) + 1
-        except Exception:
-            resume_chunk = start_chunk_default
+try:
+    with driver.session() as session:
+        for csv_path in csv_paths:
+            # Chỉ sửa: resume_chunk tăng 1 để resume đúng
+            try:
+                resume_chunk = get_checkpoint(checkpoint_file).get(csv_path.name, 0) + 1
+            except Exception:
+                resume_chunk = start_chunk_default
 
-        chunk_reader = pd.read_csv(csv_path, chunksize=chunk_size)
-        
-        for chunk_idx, chunk in enumerate(chunk_reader, start=1):
-            if chunk_idx < resume_chunk:
-                tqdm.write(f"{csv_path.name} chunk {chunk_idx}: skipping (resume at {resume_chunk})")
-                continue
+            chunk_reader = pd.read_csv(csv_path, chunksize=chunk_size)
             
-            # Xử lý dữ liệu từ chunk
-            tqdm.write(f"\n{csv_path.name} chunk {chunk_idx}: Đang xử lý dữ liệu...")
-            batch_rows = []
-            
-            for _, row in tqdm(
-                chunk.iterrows(),
-                total=len(chunk),
-                desc=f"Đọc chunk {chunk_idx}",
-                leave=False,
-                ncols=100
-            ):
-                article_id_raw = row.get("article_id")
-                entity = normalize(row.get("entity", ""))
-                if pd.isna(article_id_raw) or not entity:
+            for chunk_idx, chunk in enumerate(chunk_reader, start=1):
+                if chunk_idx < resume_chunk:
+                    tqdm.write(f"{csv_path.name} chunk {chunk_idx}: skipping (resume at {resume_chunk})")
+                    continue
+                
+                # Xử lý dữ liệu từ chunk
+                tqdm.write(f"\n{csv_path.name} chunk {chunk_idx}: Đang xử lý dữ liệu...")
+                batch_rows = []
+                
+                for _, row in tqdm(
+                    chunk.iterrows(),
+                    total=len(chunk),
+                    desc=f"Đọc chunk {chunk_idx}",
+                    leave=False,
+                    ncols=100
+                ):
+                    article_id_raw = row.get("article_id")
+                    entity = normalize(row.get("entity", ""))
+                    if pd.isna(article_id_raw) or not entity:
+                        continue
+
+                    batch_rows.append(
+                        {
+                            "article_id": int(article_id_raw),
+                            "title": normalize(row.get("title", "")) or None,
+                            "source": normalize(row.get("source", ""), "Unknown"),
+                            "category": normalize(row.get("category", ""), "Unknown"),
+                            "entity": entity,
+                            "entity_type": normalize(row.get("entity_type", ""), "Unknown"),
+                            "date": normalize(row.get("date", "")) or None,
+                        }
+                    )
+
+                if not batch_rows:
+                    save_checkpoint(checkpoint_file, csv_path.name, chunk_idx)
+                    tqdm.write(f"{csv_path.name} chunk {chunk_idx}: Không có dữ liệu hợp lệ")
                     continue
 
-                batch_rows.append(
-                    {
-                        "article_id": int(article_id_raw),
-                        "title": normalize(row.get("title", "")) or None,
-                        "source": normalize(row.get("source", ""), "Unknown"),
-                        "category": normalize(row.get("category", ""), "Unknown"),
-                        "entity": entity,
-                        "entity_type": normalize(row.get("entity_type", ""), "Unknown"),
-                        "date": normalize(row.get("date", "")) or None,
-                    }
-                )
-
-            if not batch_rows:
+                # Gửi records với thanh tiến trình
+                tqdm.write(f"{csv_path.name} chunk {chunk_idx}: Gửi {len(batch_rows)} records vào Neo4j...")
+                
+                # Tạo progress bar cho việc gửi records
+                with tqdm(
+                    total=len(batch_rows),
+                    desc=f"Gửi chunk {chunk_idx} vào Neo4j",
+                    leave=True,
+                    ncols=100,
+                    unit="records"
+                ) as pbar:
+                    # Chia batch_rows thành các batch nhỏ hơn để cập nhật progress
+                    for i in range(0, len(batch_rows), batch_size):
+                        mini_batch = batch_rows[i:i + batch_size]
+                        session.execute_write(write_batch, mini_batch, pbar)
+                
+                tqdm.write(f"{csv_path.name} chunk {chunk_idx}: ✓ Hoàn tất ({len(batch_rows)} records)")
+                
+                # Save checkpoint after successful write
                 save_checkpoint(checkpoint_file, csv_path.name, chunk_idx)
-                tqdm.write(f"{csv_path.name} chunk {chunk_idx}: Không có dữ liệu hợp lệ")
-                continue
-
-            # Gửi records với thanh tiến trình
-            tqdm.write(f"{csv_path.name} chunk {chunk_idx}: Gửi {len(batch_rows)} records vào Neo4j...")
-            
-            # Tạo progress bar cho việc gửi records
-            with tqdm(
-                total=len(batch_rows),
-                desc=f"Gửi chunk {chunk_idx} vào Neo4j",
-                leave=True,
-                ncols=100,
-                unit="records"
-            ) as pbar:
-                # Chia batch_rows thành các batch nhỏ hơn để cập nhật progress
-                for i in range(0, len(batch_rows), batch_size):
-                    mini_batch = batch_rows[i:i + batch_size]
-                    session.execute_write(write_batch, mini_batch, pbar)
-            
-            tqdm.write(f"{csv_path.name} chunk {chunk_idx}: ✓ Hoàn tất ({len(batch_rows)} records)")
-            
-            # Save checkpoint after successful write
-            save_checkpoint(checkpoint_file, csv_path.name, chunk_idx)
-
-driver.close()
+except Exception as e:
+    print("Error in create KG:", e)
+finally:
+    driver.close()
 tqdm.write("\n✓ Hoàn tất tất cả các chunks!")
