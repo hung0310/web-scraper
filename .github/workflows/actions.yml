@@ -61,24 +61,30 @@ jobs:
       - name: Generate Summary CSV
         run: python SummaryPaper.py
 
-      # 10. Tiền xử lý & extract entities
-      - name: Preprocessing & Extract Entities
-        run: python preprocessing_extract_entity.py
+      # # 10. Tiền xử lý & extract entities
+      # - name: Preprocessing & Extract Entities
+      #   run: python preprocessing_extract_entity.py
 
-      # 11. Tạo Knowledge Graph
-      - name: Create Knowledge Graph
-        run: python create_KG.py
+      # # 11. Tạo Knowledge Graph
+      # - name: Create Knowledge Graph
+      #   run: python create_KG.py
 
-      # 12. Trích xuất quan hệ
-      - name: Relation Extraction
-        run: python relation_extraction.py
+      # # 12. Trích xuất quan hệ
+      # - name: Relation Extraction
+      #   run: python relation_extraction.py
 
       # 13. Commit kết quả (nếu có thay đổi)
       - name: Commit Results
+        # run: |
+        #   git config --global user.name "GitHub Action"
+        #   git config --global user.email "action@github.com"
+        #   git add dataset_paper_tuoitre.csv dataset_paper_vnexpress.csv dataset_paper_znews.csv summary_paper.csv extracted_entities.csv checkpoint.json relations.csv
+        #   git commit -m "Update crawled data - $(date)" || echo "No changes to commit"
+        #   git push
         run: |
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
-          git add dataset_paper_tuoitre.csv dataset_paper_vnexpress.csv dataset_paper_znews.csv summary_paper.csv extracted_entities.csv checkpoint.json relations.csv
+          git add dataset_paper_tuoitre.csv dataset_paper_vnexpress.csv dataset_paper_znews.csv summary_paper.csv
           git commit -m "Update crawled data - $(date)" || echo "No changes to commit"
           git push
         env:
