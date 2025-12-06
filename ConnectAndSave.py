@@ -738,7 +738,7 @@ def run_lda_model_year():
 
 
 if __name__ == "__main__":
-    paper_dataset = ['tuoitre', 'vnexpress', 'znews']
+    paper_dataset = ['tuoitre', 'znews']
     for paper in paper_dataset:
         csv_file_path = f"dataset_paper_{paper}.csv"
         preprocess_and_save(csv_file_path, paper)
