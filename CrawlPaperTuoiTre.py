@@ -142,9 +142,8 @@ def crawl_article(driver, category_name, article_href, writer, crawled_urls):
 driver = init_driver()
 crawled_urls = load_crawled_urls(csv_file)
 
-# Mở file ở chế độ append để không mất dữ liệu cũ
-file_mode = 'a' if crawled_urls else 'w'
-write_header = not crawled_urls
+file_mode = 'w'
+write_header = True
 
 try:
     driver.get(base_url)
