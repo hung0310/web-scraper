@@ -62,16 +62,31 @@ jobs:
         run: python SummaryPaper.py
 
       # # 10. Tiền xử lý & extract entities
-      # - name: Preprocessing & Extract Entities
-      #   run: python preprocessing_extract_entity.py
+      - name: Preprocessing & Extract Entities
+        run: python preprocessing_extract_entity.py
+        env:
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
 
       # # 11. Tạo Knowledge Graph
-      # - name: Create Knowledge Graph
-      #   run: python create_KG.py
+      - name: Create Knowledge Graph
+        run: python create_KG.py
+        env:
+          NEO4J_URI: ${{ secrets.NEO4J_URI }}
+          NEO4J_USER: ${{ secrets.NEO4J_USER }}
+          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
 
       # # 12. Trích xuất quan hệ
-      # - name: Relation Extraction
-      #   run: python relation_extraction.py
+      - name: Relation Extraction
+        run: python relation_extraction.py
+        env:
+          NEO4J_URI: ${{ secrets.NEO4J_URI }}
+          NEO4J_USER: ${{ secrets.NEO4J_USER }}
+          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
 
       # 13. Commit kết quả (nếu có thay đổi)
       - name: Commit Results
@@ -84,7 +99,7 @@ jobs:
         run: |
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
-          git add dataset_paper_tuoitre.csv dataset_paper_vnexpress.csv dataset_paper_znews.csv summary_paper.csv
+          git add dataset_paper_tuoitre.csv dataset_paper_vnexpress.csv dataset_paper_znews.csv summary_paper.csv checkpoint.json
           git commit -m "Update crawled data - $(date)" || echo "No changes to commit"
           git push
         env:

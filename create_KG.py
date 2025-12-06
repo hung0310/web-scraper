@@ -3,6 +3,7 @@ from neo4j import GraphDatabase
 import pandas as pd
 from tqdm import tqdm
 import json
+import os
 
 def normalize(value, default=""):
     if value is None or pd.isna(value):
@@ -50,9 +51,9 @@ def write_batch(tx, rows, progress_bar=None):
         progress_bar.update(len(rows))
         
 # Kết nối Neo4j
-uri = "bolt://52.77.239.109:7687"
-user = "neo4j"
-password = "akeneo4jpw"
+uri = os.getenv("NEO4J_URI")
+user = os.getenv("NEO4J_USER")
+password = os.getenv("NEO4J_PASSWORD")
 driver = GraphDatabase.driver(uri, auth=(user, password))
 
 # Chỉ sửa: csv_paths thành list of Path
