@@ -1,119 +1,119 @@
-name: Crawl News
+# name: Crawl News
 
-on:
-  schedule:
-    - cron: "0 17 * * *" # 0h sáng Việt Nam (UTC+7)
-    - cron: "0 20 * * *" # 3h sáng Việt Nam
-    - cron: "0 23 * * *" # 6h sáng Việt Nam
-    - cron: "0 2 * * *" # 9h sáng Việt Nam
-    - cron: "0 5 * * *" # 12h trưa Việt Nam
-    - cron: "0 8 * * *" # 15h chiều Việt Nam
-    - cron: "0 11 * * *" # 18h tối Việt Nam
-    - cron: "0 14 * * *" # 21h tối Việt Nam
-  workflow_dispatch:
+# on:
+#   schedule:
+#     - cron: "0 17 * * *" # 0h sáng Việt Nam (UTC+7)
+#     - cron: "0 20 * * *" # 3h sáng Việt Nam
+#     - cron: "0 23 * * *" # 6h sáng Việt Nam
+#     - cron: "0 2 * * *" # 9h sáng Việt Nam
+#     - cron: "0 5 * * *" # 12h trưa Việt Nam
+#     - cron: "0 8 * * *" # 15h chiều Việt Nam
+#     - cron: "0 11 * * *" # 18h tối Việt Nam
+#     - cron: "0 14 * * *" # 21h tối Việt Nam
+#   workflow_dispatch:
 
-jobs:
-  crawl-news:
-    runs-on: ubuntu-latest
+# jobs:
+#   crawl-news:
+#     runs-on: ubuntu-latest
 
-    steps:
-      # 1. Lấy mã nguồn từ repo
-      - name: Checkout Repository
-        uses: actions/checkout@v3
+#     steps:
+#       # 1. Lấy mã nguồn từ repo
+#       - name: Checkout Repository
+#         uses: actions/checkout@v3
 
-      # 2. Cài đặt Python
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.12"
+#       # 2. Cài đặt Python
+#       - name: Setup Python
+#         uses: actions/setup-python@v4
+#         with:
+#           python-version: "3.12"
 
-      # 3. Cài đặt PostgreSQL dependencies (nếu dùng psycopg2)
-      - name: Install PostgreSQL dependencies
-        run: sudo apt-get update && sudo apt-get install -y libpq-dev
+#       # 3. Cài đặt PostgreSQL dependencies (nếu dùng psycopg2)
+#       - name: Install PostgreSQL dependencies
+#         run: sudo apt-get update && sudo apt-get install -y libpq-dev
 
-      # 4. Cài các thư viện cần thiết
-      - name: Install Dependencies
-        run: pip install -r requirements.txt
+#       # 4. Cài các thư viện cần thiết
+#       - name: Install Dependencies
+#         run: pip install -r requirements.txt
 
-      # 5. Crawl từ Tuổi Trẻ
-      - name: Crawl Tuoi Tre
-        run: python CrawlPaperTuoiTre.py
+#       # 5. Crawl từ Tuổi Trẻ
+#       - name: Crawl Tuoi Tre
+#         run: python CrawlPaperTuoiTre.py
 
-      # # 6. Crawl từ VNExpress
-      # - name: Crawl VNExpress
-      #   run: python CrawlPaperVNExpress.py
+#       # # 6. Crawl từ VNExpress
+#       # - name: Crawl VNExpress
+#       #   run: python CrawlPaperVNExpress.py
 
-      # 7. Crawl từ ZNews
-      - name: Crawl ZNews
-        run: python CrawlPaperZNews.py
+#       # 7. Crawl từ ZNews
+#       - name: Crawl ZNews
+#         run: python CrawlPaperZNews.py
 
-      # 8. Tiền xử lý và lưu vào DB
-      - name: Data Processing & Save to DB
-        run: python ConnectAndSave.py
-        env:
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_PORT: ${{ secrets.DB_PORT }}
+#       # 8. Tiền xử lý và lưu vào DB
+#       - name: Data Processing & Save to DB
+#         run: python ConnectAndSave.py
+#         env:
+#           DB_NAME: ${{ secrets.DB_NAME }}
+#           DB_USER: ${{ secrets.DB_USER }}
+#           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+#           DB_HOST: ${{ secrets.DB_HOST }}
+#           DB_PORT: ${{ secrets.DB_PORT }}
 
-      # 9. Tạo Summary cho tất cả các file
-      - name: Generate Summary CSV
-        run: python SummaryPaper.py
+#       # 9. Tạo Summary cho tất cả các file
+#       - name: Generate Summary CSV
+#         run: python SummaryPaper.py
 
-      # # 10. Tiền xử lý & extract entities
-      - name: Preprocessing & Extract Entities
-        run: python preprocessing_extract_entity.py
-        env:
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_PORT: ${{ secrets.DB_PORT }}
+#       # # 10. Tiền xử lý & extract entities
+#       - name: Preprocessing & Extract Entities
+#         run: python preprocessing_extract_entity.py
+#         env:
+#           DB_NAME: ${{ secrets.DB_NAME }}
+#           DB_USER: ${{ secrets.DB_USER }}
+#           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+#           DB_HOST: ${{ secrets.DB_HOST }}
+#           DB_PORT: ${{ secrets.DB_PORT }}
 
-      # # 11. Tạo Knowledge Graph
-      - name: Create Knowledge Graph
-        run: python create_KG.py
-        env:
-          NEO4J_URI: ${{ secrets.NEO4J_URI }}
-          NEO4J_USER: ${{ secrets.NEO4J_USER }}
-          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+#       # # 11. Tạo Knowledge Graph
+#       - name: Create Knowledge Graph
+#         run: python create_KG.py
+#         env:
+#           NEO4J_URI: ${{ secrets.NEO4J_URI }}
+#           NEO4J_USER: ${{ secrets.NEO4J_USER }}
+#           NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
 
-      # # 12. Trích xuất quan hệ
-      - name: Relation Extraction
-        run: python relation_extraction.py
-        env:
-          NEO4J_URI: ${{ secrets.NEO4J_URI }}
-          NEO4J_USER: ${{ secrets.NEO4J_USER }}
-          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
-          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
+#       # # 12. Trích xuất quan hệ
+#       - name: Relation Extraction
+#         run: python relation_extraction.py
+#         env:
+#           NEO4J_URI: ${{ secrets.NEO4J_URI }}
+#           NEO4J_USER: ${{ secrets.NEO4J_USER }}
+#           NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+#           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
 
-      # 13. Commit kết quả (nếu có thay đổi)
-      - name: Commit Results
-        # run: |
-        #   git config --global user.name "GitHub Action"
-        #   git config --global user.email "action@github.com"
-        #   git add dataset_paper_tuoitre.csv dataset_paper_vnexpress.csv dataset_paper_znews.csv summary_paper.csv extracted_entities.csv checkpoint.json relations.csv
-        #   git commit -m "Update crawled data - $(date)" || echo "No changes to commit"
-        #   git push
-        run: |
-          git config --global user.name "GitHub Action"
-          git config --global user.email "action@github.com"
-          git add dataset_paper_tuoitre.csv dataset_paper_vnexpress.csv dataset_paper_znews.csv summary_paper.csv checkpoint.json
-          git commit -m "Update crawled data - $(date)" || echo "No changes to commit"
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#       # 13. Commit kết quả (nếu có thay đổi)
+#       - name: Commit Results
+#         # run: |
+#         #   git config --global user.name "GitHub Action"
+#         #   git config --global user.email "action@github.com"
+#         #   git add dataset_paper_tuoitre.csv dataset_paper_vnexpress.csv dataset_paper_znews.csv summary_paper.csv extracted_entities.csv checkpoint.json relations.csv
+#         #   git commit -m "Update crawled data - $(date)" || echo "No changes to commit"
+#         #   git push
+#         run: |
+#           git config --global user.name "GitHub Action"
+#           git config --global user.email "action@github.com"
+#           git add dataset_paper_tuoitre.csv dataset_paper_vnexpress.csv dataset_paper_znews.csv summary_paper.csv checkpoint.json
+#           git commit -m "Update crawled data - $(date)" || echo "No changes to commit"
+#           git push
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 14. Gửi email thông báo hoàn tất
-      - name: Send Email
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          username: ${{ secrets.MAIL_USERNAME }}
-          password: ${{ secrets.MAIL_PASSWORD }}
-          subject: "Test new task - crawl and neo4j - Completed ✅"
-          body: "Crawl completed successfully. Check the updated datasets and KG in the repository."
-          to: nth0326zz@gmail.com
-          from: "Crawl Paper Bot"
+#       # 14. Gửi email thông báo hoàn tất
+#       - name: Send Email
+#         uses: dawidd6/action-send-mail@v3
+#         with:
+#           server_address: smtp.gmail.com
+#           server_port: 465
+#           username: ${{ secrets.MAIL_USERNAME }}
+#           password: ${{ secrets.MAIL_PASSWORD }}
+#           subject: "Test new task - crawl and neo4j - Completed ✅"
+#           body: "Crawl completed successfully. Check the updated datasets and KG in the repository."
+#           to: nth0326zz@gmail.com
+#           from: "Crawl Paper Bot"
